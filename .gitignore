@@ -1,0 +1,25 @@
+# Maven
+target/
+*.class
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# IntelliJ / VS Code, harmless if unused
+.idea/
+*.iml
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
