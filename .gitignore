@@ -1,6 +1,7 @@
 # Maven
 target/
 *.class
+cp.txt
 
 # Eclipse
 .project

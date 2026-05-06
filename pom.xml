@@ -31,6 +31,12 @@
 			<groupId>io.github.heddle</groupId>
 			<artifactId>mdi</artifactId>
 			<version>${mdi.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>xml-apis</groupId>
+					<artifactId>xml-apis</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<!-- Optional 3D MDI extension -->
@@ -38,6 +44,12 @@
 			<groupId>io.github.heddle</groupId>
 			<artifactId>mdi-3d</artifactId>
 			<version>${mdi3d.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>xml-apis</groupId>
+					<artifactId>xml-apis</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<!-- Tests -->
@@ -76,7 +88,6 @@
 					<mainClass>edu.cnu.mdi.mosaic.app.MosaicApp</mainClass>
 				</configuration>
 			</plugin>
-
 		</plugins>
 	</build>
 </project>
