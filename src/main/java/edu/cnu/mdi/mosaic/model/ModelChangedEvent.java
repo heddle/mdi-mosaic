@@ -17,6 +17,11 @@ public final class ModelChangedEvent {
      * Type of Mosaic model change.
      */
     public enum Type {
+    	
+    	/**
+    	 * The complete algorithm result changed.
+    	 */
+    	ALGORITHM_RESULT_CHANGED,
 
         /**
          * The active Mosaic grid specification changed.
@@ -76,7 +81,17 @@ public final class ModelChangedEvent {
         /**
          * A status message changed.
          */
-        STATUS_CHANGED
+        STATUS_CHANGED,
+        
+        /**
+         * Monte Carlo point data changed.
+         */
+        MONTE_CARLO_CHANGED,
+
+        /**
+         * Monte Carlo point data was cleared.
+         */
+        MONTE_CARLO_CLEARED
     }
 
     /** The model that changed. */

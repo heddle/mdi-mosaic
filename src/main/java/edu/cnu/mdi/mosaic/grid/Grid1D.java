@@ -147,6 +147,34 @@ public final class Grid1D {
 
         return insertionPoint - 1;
     }
+    
+    
+    /**
+     * Locates the cell containing a coordinate value.
+     * <p>
+     * A grid with {@code N} points has {@code N - 1} cells, indexed from
+     * {@code 0} through {@code numCells() - 1}. This method returns the cell index
+     * {@code i} such that:
+     * </p>
+     *
+     * <pre>
+     * points[i] <= value < points[i + 1]
+     * </pre>
+     *
+     * <p>
+     * If {@code value} is exactly equal to the final grid point, the last cell is
+     * returned. This is useful for closed-domain feedback and patch indexing, where
+     * the upper boundary should still belong to the final cell rather than being
+     * reported as outside the grid.
+     * </p>
+     *
+     * @param value the coordinate value
+     * @return the cell index in {@code [0, numCells() - 1]}, or {@code -1} if the
+     *         value is outside the grid
+     */
+    public int cellIndex(double value) {
+        return locateInterval(value);
+    }
 
     /**
      * Gets the index of the grid vertex closest to a value.

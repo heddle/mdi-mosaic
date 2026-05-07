@@ -5,7 +5,11 @@ import javax.swing.JMenuItem;
 
 import edu.cnu.mdi.app.BaseMDIApplication;
 import edu.cnu.mdi.log.Log;
+import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithm;
+import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmController;
 import edu.cnu.mdi.mosaic.dialog.GridSetupDialog;
+import edu.cnu.mdi.mosaic.dialog.MonteCarloDialog;
+import edu.cnu.mdi.mosaic.map.MosaicView2D;
 import edu.cnu.mdi.mosaic.model.ModelChangedEvent;
 import edu.cnu.mdi.mosaic.model.ModelChangedListener;
 import edu.cnu.mdi.mosaic.model.MosaicGridSpec;
@@ -29,9 +33,15 @@ public class MosaicApp extends BaseMDIApplication {
 
 	/** Singleton instance of the Mosaic application. */
 	private static MosaicApp INSTANCE;
+	
+	/** Main Mosaic 2D map view. */
+	private MosaicView2D mosaicView2D;
 
 	/** the log view */
 	private LogView logView;
+	
+	/** Controller for running the exact Mosaic algorithm. */
+	private MosaicAlgorithmController algorithmController;
 
 	/** the main data model for Mosaic with the grid information */
 	private final static MosaicModel mosaicModel;
@@ -44,6 +54,7 @@ public class MosaicApp extends BaseMDIApplication {
 	 */
 	private MosaicApp(Object... keyVals) {
 		super(keyVals);
+	    algorithmController = new MosaicAlgorithmController(mosaicModel);
 		modifyMenus();
 	}
 
@@ -67,6 +78,8 @@ public class MosaicApp extends BaseMDIApplication {
 
 	@Override
 	protected void addInitialViews() {
+	    mosaicView2D = new MosaicView2D(mosaicModel);
+
 		// Log view is useful but not always visible.
 		logView = new LogView();
 		logView.setVisible(false);
@@ -98,6 +111,36 @@ public class MosaicApp extends BaseMDIApplication {
 		// Insert another separator above Quit, so the new command is grouped
 		// separately.
 		fileMenu.insertSeparator(quitIndex + 1);
+		
+		
+		addMonteCarloMenu();
+		addAlgorithmMenu();
+	}
+	
+	private void addMonteCarloMenu() {
+		JMenu mcMenu = new JMenu("Monte Carlo");
+		getJMenuBar().add(mcMenu);
+
+		JMenuItem generateMonteCarloItem = new JMenuItem("Generate Monte Carlo...");
+		generateMonteCarloItem.addActionListener(e -> MonteCarloDialog.showDialog(null, mosaicModel));
+		mcMenu.add(generateMonteCarloItem);
+
+		JMenuItem clearMonteCarloItem = new JMenuItem("Clear Monte Carlo");
+		clearMonteCarloItem.addActionListener(e -> mosaicModel.clearMonteCarloPoints());
+		mcMenu.add(clearMonteCarloItem);
+	}
+	
+	private void addAlgorithmMenu() {
+		JMenu algorithmMenu = new JMenu("Algorithm");
+		getJMenuBar().add(algorithmMenu);
+		
+		JMenuItem runAlgorithmItem = new JMenuItem("Run Algorithm...");
+		runAlgorithmItem.addActionListener(e -> algorithmController.runAlgorithm());
+		algorithmMenu.add(runAlgorithmItem);
+
+		JMenuItem clearAlgorithmItem = new JMenuItem("Clear Algorithm Result");
+		clearAlgorithmItem.addActionListener(e -> algorithmController.clearAlgorithmResult());
+		algorithmMenu.add(clearAlgorithmItem);	;
 	}
 
 	/**
@@ -110,6 +153,7 @@ public class MosaicApp extends BaseMDIApplication {
 	 */
 	@Override
 	protected void defaultViewLayout() {
+		virtualViewMove(mosaicView2D, 0, VirtualView.CENTER);
 		virtualViewMove(logView, 2, VirtualView.UPPERLEFT);
 	}
 

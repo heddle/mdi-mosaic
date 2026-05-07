@@ -135,4 +135,29 @@ public final class MosaicGridSpec {
                     "The Cartesian grid must enclose the spherical grid of radius " + r + ".");
         }
     }
+    
+    /**
+	 * Gets the Cartesian and spherical grid cell indices for a point on the
+	 * spherical surface.
+	 *
+	 * @param theta the spherical theta coordinate
+	 * @param phi the spherical phi coordinate
+	 * @param radius the spherical radius
+	 * @param indices an array of length 5 to hold the output indices; on return,
+	 *        this contains [nx, ny, nz, ntheta, nphi]
+	 */
+    public void getPatchIndices(double theta, double phi, double radius, int[] indices) {
+    	
+    	double sinTheta = Math.sin(theta);
+    	
+    	double x = radius * sinTheta * Math.cos(phi);
+    	double y = radius * sinTheta * Math.sin(phi);
+    	double z = radius * Math.cos(theta);   	
+    	
+		indices[0] = cartesianGrid.getXGrid().cellIndex(x);
+		indices[1] = cartesianGrid.getYGrid().cellIndex(y);
+		indices[2] = cartesianGrid.getZGrid().cellIndex(z);
+		indices[3] = sphericalGrid.getThetaGrid().cellIndex(theta);
+		indices[4] = sphericalGrid.getPhiGrid().cellIndex(phi);
+	}
 }
