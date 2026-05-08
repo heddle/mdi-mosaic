@@ -140,7 +140,7 @@ public class MosaicApp extends BaseMDIApplication {
 		        AlgorithmOptionsDialog.showDialog(this, mosaicModel));
 		algorithmMenu.add(optionsItem);
 		
-		JMenuItem runAlgorithmItem = new JMenuItem("Run Algorithm...");
+		JMenuItem runAlgorithmItem = new JMenuItem("Run Algorithm");
 		runAlgorithmItem.addActionListener(e -> algorithmController.runAlgorithm());
 		algorithmMenu.add(runAlgorithmItem);
 

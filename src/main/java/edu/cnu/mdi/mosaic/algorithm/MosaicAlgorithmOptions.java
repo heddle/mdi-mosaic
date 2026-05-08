@@ -23,7 +23,7 @@ public final class MosaicAlgorithmOptions {
     private int areaSamplesPerCurve = DEFAULT_AREA_SAMPLES_PER_CURVE;
 
     /** Whether to run the area convergence diagnostic. */
-    private boolean runAreaConvergenceTest = true;
+    private boolean runAreaConvergenceTest = false;
 
     /** Sample counts used by the area convergence diagnostic. */
     private int[] convergenceSampleCounts =
