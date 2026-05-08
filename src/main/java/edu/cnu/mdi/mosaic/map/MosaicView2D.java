@@ -119,6 +119,7 @@ public class MosaicView2D extends MapView2D {
 		     SELECTION_CHANGED,
 		     INTERSECTING_CELLS_CHANGED,
 		     ALGORITHM_RESULT_CHANGED,
+		     ALGORITHM_OPTIONS_CHANGED,
 		     PREPATCHES_CHANGED,
 		     THETA_PATCHES_CHANGED,
 		     PATCHES_CHANGED,
@@ -402,6 +403,14 @@ public class MosaicView2D extends MapView2D {
 	    return false; // Disable standard graticules to avoid cluttering the map
 	}
 
+	/**
+	 * Override to set a custom side panel width suitable for Mosaic controls.
+	 *
+	 * @return the side panel width in pixels
+	 */
+	protected int getSidePanelWidth() {
+		return 260;
+	}
 
 	/**
 	 * Gets the shared Mosaic model.
@@ -544,13 +553,14 @@ public class MosaicView2D extends MapView2D {
 			double y = r * sinTheta * Math.sin(Math.toRadians(gsmPhi));
 			double z = r * Math.cos(Math.toRadians(gsmTheta));
 
+			String polarStr = String.format("(r, %s, %s) = (%.2fRe, %.2f%s, %.2f%s)", 
+					UnicodeUtils.SMALL_THETA, 
+					UnicodeUtils.SMALL_PHI, r, gsmTheta, DEG, gsmPhi, DEG);
+			
+			String carStr = String.format("(x, y, z) = (%.2fRe, %.2fRe, %.2fRe)", x, y, z );
 
-			feedbackStrings.add(String.format("r: %.2fRe", r));
-	     	feedbackStrings.add(String.format("%s: %.2f%s", UnicodeUtils.SMALL_THETA, gsmTheta, DEG));
-			feedbackStrings.add(String.format("%s: %.2f%s", UnicodeUtils.SMALL_PHI, gsmPhi, DEG));
-			feedbackStrings.add(String.format("x: %.2fRe", x));
-			feedbackStrings.add(String.format("y: %.2fRe", y));
-			feedbackStrings.add(String.format("z: %.2fRe", z));
+			feedbackStrings.add(polarStr);
+			feedbackStrings.add(carStr);
 
 			model.getGridSpec().getPatchIndices(Math.toRadians(gsmTheta), Math.toRadians(gsmPhi), r, indexArray);
 			feedbackStrings.add(String.format("nx=%d, ny=%d"

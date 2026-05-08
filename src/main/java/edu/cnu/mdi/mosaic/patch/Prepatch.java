@@ -16,11 +16,13 @@ import edu.cnu.mdi.mosaic.cell.CellIntersectionType;
  * @param cellId Cartesian cell id
  * @param sourceType source intersection type
  * @param curves boundary curves
+ * @param poleClassification pole-involvement metadata
  */
 public record Prepatch(
         CellId cellId,
         CellIntersectionType sourceType,
-        List<GeneralCurve> curves) {
+        List<GeneralCurve> curves,
+        PoleClassification poleClassification) {
 
     /**
      * Creates a prepatch.
@@ -28,6 +30,7 @@ public record Prepatch(
      * @param cellId cell id
      * @param sourceType source type
      * @param curves boundary curves
+     * @param poleClassification pole-involvement metadata
      */
     public Prepatch {
         if (cellId == null) {
@@ -36,7 +39,23 @@ public record Prepatch(
         if (sourceType == null) {
             throw new IllegalArgumentException("sourceType must not be null.");
         }
+
         curves = List.copyOf(curves == null ? List.of() : curves);
+        poleClassification = (poleClassification == null)
+                ? PoleClassification.NONE
+                : poleClassification;
+    }
+
+    /**
+     * Backward-compatible constructor for non-polar prepatches.
+     *
+     * @param cellId cell id
+     * @param sourceType source type
+     * @param curves boundary curves
+     */
+    public Prepatch(CellId cellId, CellIntersectionType sourceType,
+            List<GeneralCurve> curves) {
+        this(cellId, sourceType, curves, PoleClassification.NONE);
     }
 
     /**
@@ -55,5 +74,14 @@ public record Prepatch(
      */
     public boolean hasCurves() {
         return !curves.isEmpty();
+    }
+
+    /**
+     * Checks whether this prepatch involves either GSM pole.
+     *
+     * @return true if either pole is involved
+     */
+    public boolean hasPoleInvolvement() {
+        return poleClassification.hasPoleInvolvement();
     }
 }

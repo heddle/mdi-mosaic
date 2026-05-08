@@ -19,6 +19,11 @@ public final class ModelChangedEvent {
     public enum Type {
     	
     	/**
+    	 * Algorithm options changed.
+    	 */
+    	ALGORITHM_OPTIONS_CHANGED,
+    	
+    	/**
     	 * The complete algorithm result changed.
     	 */
     	ALGORITHM_RESULT_CHANGED,

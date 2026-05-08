@@ -2,6 +2,7 @@ package edu.cnu.mdi.mosaic.algorithm;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import edu.cnu.mdi.log.Log;
@@ -9,7 +10,10 @@ import edu.cnu.mdi.mosaic.area.PrepatchAreaCalculator;
 import edu.cnu.mdi.mosaic.area.PrepatchAreaResult;
 import edu.cnu.mdi.mosaic.cell.IntersectingCell;
 import edu.cnu.mdi.mosaic.cell.IntersectingCellFinder;
+import edu.cnu.mdi.mosaic.diagnostic.PrepatchDiagnosticBuilder;
+import edu.cnu.mdi.mosaic.diagnostic.PrepatchDiagnosticSummary;
 import edu.cnu.mdi.mosaic.model.MosaicGridSpec;
+import edu.cnu.mdi.mosaic.patch.PoleStats;
 import edu.cnu.mdi.mosaic.patch.PrepatchBuildResult;
 import edu.cnu.mdi.mosaic.patch.PrepatchBuilder;
 
@@ -40,12 +44,19 @@ public final class MosaicAlgorithm {
      * </ol>
      *
      * @param gridSpec grid specification
+     * @param options algorithm options
      * @return algorithm result
      */
-    public static MosaicAlgorithmResult run(MosaicGridSpec gridSpec) {
-        if (gridSpec == null) {
+    public static MosaicAlgorithmResult run(MosaicGridSpec gridSpec,
+            MosaicAlgorithmOptions options) {
+    	
+    	if (gridSpec == null) {
             throw new IllegalArgumentException("gridSpec must not be null.");
         }
+    	
+    	if (options == null) {
+    	    options = new MosaicAlgorithmOptions();
+    	}
 
         Instant start = Instant.now();
 
@@ -81,17 +92,52 @@ public final class MosaicAlgorithm {
         
         logPrepatchFailures(prepatchResult, 10);
         
+        PoleStats poleStats = PoleStats.fromPrepatches(prepatchResult.prepatches());
+        for (String line : poleStats.summary().split("\\R")) {
+            Log.getInstance().info(line);
+        }
+        
         //area test
         Log.getInstance().info("Step 2 area test: approximate ordinary prepatch areas...");
 
-        List<PrepatchAreaResult> areaResults =
-                PrepatchAreaCalculator.convergenceTest(
+        PrepatchAreaResult productionAreaResult =
+                PrepatchAreaCalculator.compute(
                         prepatchResult.prepatches(),
                         radius,
-                        4, 8, 16, 32, 64);
+                        options.getAreaSamplesPerCurve());
 
-        for (PrepatchAreaResult areaResult : areaResults) {
-            Log.getInstance().info("  " + areaResult.summaryLine());
+        Log.getInstance().info("  production "
+                + productionAreaResult.summaryLine());
+
+        List<PrepatchAreaResult> areaResults = new ArrayList<>();
+        areaResults.add(productionAreaResult);
+        
+        Log.getInstance().info("Step 2 diagnostics: ordinary prepatch diagnostics...");
+
+        PrepatchDiagnosticSummary diagnosticSummary =
+                PrepatchDiagnosticBuilder.build(
+                        prepatchResult.prepatches(),
+                        radius,
+                        options.getAreaSamplesPerCurve());
+
+        for (String line : diagnosticSummary.summary().split("\\R")) {
+            Log.getInstance().info(line);
+        }
+
+        if (options.isRunAreaConvergenceTest()) {
+            List<PrepatchAreaResult> convergenceResults =
+                    PrepatchAreaCalculator.convergenceTest(
+                            prepatchResult.prepatches(),
+                            radius,
+                            options.getConvergenceSampleCounts());
+
+            Log.getInstance().info("  convergence test:");
+
+            for (PrepatchAreaResult areaResult : convergenceResults) {
+                Log.getInstance().info("    " + areaResult.summaryLine());
+            }
+
+            areaResults.addAll(convergenceResults);
         }
 
         PrepatchAreaResult finalAreaResult = areaResults.get(areaResults.size() - 1);
@@ -101,7 +147,6 @@ public final class MosaicAlgorithm {
                     + finalAreaResult.failedCellIds().size()
                     + " prepatches at highest sample count.");
         }
-
         Duration duration = Duration.between(start, Instant.now());
 
         Log.getInstance().info("Algorithm steps 1-2 completed in "
@@ -112,9 +157,9 @@ public final class MosaicAlgorithm {
                 prepatchResult.prepatches(),
                 prepatchResult.deferredCells(),
                 areaResults,
+                diagnosticSummary,
                 stats,
-                duration);
-    }
+                duration);    }
     
     /**
      * Logs a small sample of ordinary prepatch-construction failures.

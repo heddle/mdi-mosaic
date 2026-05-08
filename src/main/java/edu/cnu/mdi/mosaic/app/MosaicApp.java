@@ -7,6 +7,7 @@ import edu.cnu.mdi.app.BaseMDIApplication;
 import edu.cnu.mdi.log.Log;
 import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithm;
 import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmController;
+import edu.cnu.mdi.mosaic.dialog.AlgorithmOptionsDialog;
 import edu.cnu.mdi.mosaic.dialog.GridSetupDialog;
 import edu.cnu.mdi.mosaic.dialog.MonteCarloDialog;
 import edu.cnu.mdi.mosaic.map.MosaicView2D;
@@ -122,7 +123,7 @@ public class MosaicApp extends BaseMDIApplication {
 		getJMenuBar().add(mcMenu);
 
 		JMenuItem generateMonteCarloItem = new JMenuItem("Generate Monte Carlo...");
-		generateMonteCarloItem.addActionListener(e -> MonteCarloDialog.showDialog(null, mosaicModel));
+		generateMonteCarloItem.addActionListener(e -> MonteCarloDialog.showDialog(this, mosaicModel));
 		mcMenu.add(generateMonteCarloItem);
 
 		JMenuItem clearMonteCarloItem = new JMenuItem("Clear Monte Carlo");
@@ -133,6 +134,11 @@ public class MosaicApp extends BaseMDIApplication {
 	private void addAlgorithmMenu() {
 		JMenu algorithmMenu = new JMenu("Algorithm");
 		getJMenuBar().add(algorithmMenu);
+		
+		JMenuItem optionsItem = new JMenuItem("Algorithm Options...");
+		optionsItem.addActionListener(e ->
+		        AlgorithmOptionsDialog.showDialog(this, mosaicModel));
+		algorithmMenu.add(optionsItem);
 		
 		JMenuItem runAlgorithmItem = new JMenuItem("Run Algorithm...");
 		runAlgorithmItem.addActionListener(e -> algorithmController.runAlgorithm());

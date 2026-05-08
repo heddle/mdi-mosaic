@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import javax.swing.SwingUtilities;
 
+import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmOptions;
 import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmResult;
 import edu.cnu.mdi.mosaic.cell.IntersectingCell;
 import edu.cnu.mdi.mosaic.mc.MonteCarloPoint;
@@ -40,6 +41,9 @@ public final class MosaicModel {
 
 	/** Most recent exact algorithm result. */
 	private MosaicAlgorithmResult algorithmResult = MosaicAlgorithmResult.empty();
+	
+	/** User-adjustable algorithm options. */
+	private MosaicAlgorithmOptions algorithmOptions = new MosaicAlgorithmOptions();
 
 	/**
 	 * Creates a model using the default paper test grid.
@@ -458,6 +462,39 @@ public final class MosaicModel {
 	 */
 	public int getPrepatchCount() {
 	    return algorithmResult.getPrepatchCount();
+	}
+	
+	/**
+	 * Gets a copy of the current algorithm options.
+	 * <p>
+	 * A copy is returned so callers cannot mutate model state without going
+	 * through {@link #setAlgorithmOptions(MosaicAlgorithmOptions)}.
+	 * </p>
+	 *
+	 * @return algorithm options copy
+	 */
+	public MosaicAlgorithmOptions getAlgorithmOptions() {
+	    return new MosaicAlgorithmOptions(algorithmOptions);
+	}
+
+	/**
+	 * Sets the current algorithm options.
+	 *
+	 * @param options new options
+	 */
+	public void setAlgorithmOptions(MosaicAlgorithmOptions options) {
+	    MosaicAlgorithmOptions oldOptions = algorithmOptions;
+
+	    algorithmOptions = (options == null)
+	            ? new MosaicAlgorithmOptions()
+	            : new MosaicAlgorithmOptions(options);
+
+	    String message = "Algorithm options changed.";
+
+	    setStatusMessage(message);
+
+	    fireModelChanged(ModelChangedEvent.Type.ALGORITHM_OPTIONS_CHANGED,
+	            oldOptions, algorithmOptions, message);
 	}
 
 	/**

@@ -7,7 +7,11 @@ import java.util.Objects;
 
 import edu.cnu.mdi.mosaic.area.PrepatchAreaResult;
 import edu.cnu.mdi.mosaic.cell.IntersectingCell;
+import edu.cnu.mdi.mosaic.diagnostic.PrepatchDiagnosticSummary;
+import edu.cnu.mdi.mosaic.patch.PoleRelation;
+import edu.cnu.mdi.mosaic.patch.PoleStats;
 import edu.cnu.mdi.mosaic.patch.Prepatch;
+import edu.cnu.mdi.util.UnicodeUtils;
 
 /**
  * Immutable result of a Mosaic algorithm run.
@@ -34,6 +38,12 @@ public final class MosaicAlgorithmResult {
     
     /** Prepatch area convergence results. */
     private final List<PrepatchAreaResult> prepatchAreaResults;
+    
+    /** Pole-involvement statistics for ordinary prepatches. */
+    private final PoleStats poleStats;
+    
+    /** Diagnostic summary for ordinary prepatches. */
+    private final PrepatchDiagnosticSummary prepatchDiagnosticSummary;
 
     /** Total run time. */
     private final Duration duration;
@@ -51,22 +61,36 @@ public final class MosaicAlgorithmResult {
             List<Prepatch> prepatches,
             List<IntersectingCell> deferredPrepatchCells,
             List<PrepatchAreaResult> prepatchAreaResults,
+            PrepatchDiagnosticSummary prepatchDiagnosticSummary,
             MosaicAlgorithmStats stats,
             Duration duration) {
-
+    	
         this.intersectingCells = List.copyOf(
                 Objects.requireNonNull(intersectingCells, "intersectingCells"));
 
         this.prepatches = List.copyOf(prepatches == null ? List.of() : prepatches);
+        this.poleStats = PoleStats.fromPrepatches(this.prepatches);
         this.deferredPrepatchCells = List.copyOf(
                 deferredPrepatchCells == null ? List.of() : deferredPrepatchCells);
         this.prepatchAreaResults = List.copyOf(
                 prepatchAreaResults == null ? List.of() : prepatchAreaResults);
+        this.prepatchDiagnosticSummary = (prepatchDiagnosticSummary == null)
+                ? PrepatchDiagnosticSummary.empty()
+                : prepatchDiagnosticSummary;
 
         this.stats = Objects.requireNonNull(stats, "stats");
         this.duration = Objects.requireNonNull(duration, "duration");
     }    
     
+    
+    /**
+     * Gets pole-involvement statistics for ordinary prepatches.
+     *
+     * @return pole statistics
+     */
+    public PoleStats getPoleStats() {
+        return poleStats;
+    }
     /**
      * Gets prepatch area convergence results.
      *
@@ -159,24 +183,186 @@ public final class MosaicAlgorithmResult {
                 List.of(),
                 List.of(),
                 List.of(),
+                PrepatchDiagnosticSummary.empty(),
                 MosaicAlgorithmStats.empty(),
                 Duration.ZERO);
     }
     
     /**
-	 * Gets human-readable strings summarizing prepatch area convergence results.
-	 *
-	 * @return list of result strings
-	 */
+     * Gets the prepatch diagnostic summary.
+     *
+     * @return diagnostic summary
+     */
+    public PrepatchDiagnosticSummary getPrepatchDiagnosticSummary() {
+        return prepatchDiagnosticSummary;
+    }
+    
+    /**
+     * Gets the production prepatch area result.
+     *
+     * <p>
+     * By convention, entry zero of {@code prepatchAreaResults} is the production
+     * area result. Additional entries, when present, are convergence-test results.
+     * </p>
+     *
+     * @return production area result, or {@code null} if no area was computed
+     */
+    public PrepatchAreaResult getProductionPrepatchAreaResult() {
+        return prepatchAreaResults.isEmpty() ? null : prepatchAreaResults.get(0);
+    }
+    
+    /**
+     * Gets human-readable strings summarizing the most recent algorithm result.
+     *
+     * <p>
+     * The strings are suitable for the Mosaic feedback pane. They summarize the
+     * current exact-algorithm state, including intersecting cells, ordinary
+     * prepatches, deferred cells, area estimates, and run time.
+     * </p>
+     *
+     * @return list of result strings
+     */
     public ArrayList<String> getResultStrings() {
-    	String cstr = "$orange$";
-    			
-		ArrayList<String> resultStrings = new ArrayList<>();
-		for (PrepatchAreaResult result : prepatchAreaResults) {
-			resultStrings.add(String.format("%sAnorm: %.17g", cstr, result.normalizedArea()));
+        final String titleColor = "$orange$";
+        final String valueColor = "$cyan$";
+        final String warnColor = "$yellow$";
 
-		}
-		return resultStrings;
-	}
+        ArrayList<String> resultStrings = new ArrayList<>();
+
+        if (intersectingCells.isEmpty()
+                && prepatches.isEmpty()
+                && prepatchAreaResults.isEmpty()) {
+            resultStrings.add(titleColor + "Algorithm: no results");
+            return resultStrings;
+        }
+
+        resultStrings.add(titleColor + "Algorithm results");
+        resultStrings.add(String.format("%sIntersecting cells: %,d",
+                valueColor, getIntersectingCellCount()));
+
+        if (stats != null) {
+            for (var entry : stats.getCellTypeCounts().entrySet()) {
+                long count = entry.getValue();
+                if (count > 0) {
+                    resultStrings.add(String.format("%s  %s: %,d",
+                            valueColor, entry.getKey(), count));
+                }
+            }
+        }
+
+        resultStrings.add(String.format("%sPrepatches: %,d",
+                valueColor, getPrepatchCount()));
+
+        if (getDeferredPrepatchCellCount() > 0) {
+            resultStrings.add(String.format("%sDeferred cells: %,d",
+                    warnColor, getDeferredPrepatchCellCount()));
+        } else {
+            resultStrings.add(valueColor + "Deferred cells: 0");
+        }
+        
+        if (poleStats != null && poleStats.getAnyPoleCount() > 0) {
+            resultStrings.add(String.format("%sPole prepatches: %,d",
+                    warnColor, poleStats.getAnyPoleCount()));
+
+            if (poleStats.getNorthCount(PoleRelation.INSIDE) > 0
+                    || poleStats.getNorthCount(PoleRelation.ON_BOUNDARY) > 0
+                    || poleStats.getNorthCount(PoleRelation.AT_VERTEX) > 0) {
+                resultStrings.add(String.format(
+                        "%s  north: in=%d, bnd=%d, vtx=%d",
+                        warnColor,
+                        poleStats.getNorthCount(PoleRelation.INSIDE),
+                        poleStats.getNorthCount(PoleRelation.ON_BOUNDARY),
+                        poleStats.getNorthCount(PoleRelation.AT_VERTEX)));
+            }
+
+            if (poleStats.getSouthCount(PoleRelation.INSIDE) > 0
+                    || poleStats.getSouthCount(PoleRelation.ON_BOUNDARY) > 0
+                    || poleStats.getSouthCount(PoleRelation.AT_VERTEX) > 0) {
+                resultStrings.add(String.format(
+                        "%s  south: in=%d, bnd=%d, vtx=%d",
+                        warnColor,
+                        poleStats.getSouthCount(PoleRelation.INSIDE),
+                        poleStats.getSouthCount(PoleRelation.ON_BOUNDARY),
+                        poleStats.getSouthCount(PoleRelation.AT_VERTEX)));
+            }
+        }       
+
+        if (prepatchAreaResults.isEmpty()) {
+            resultStrings.add(warnColor + "Prepatch area: not computed");
+        } else {
+            PrepatchAreaResult production = prepatchAreaResults.get(0);
+
+            resultStrings.add(String.format(
+                    "%sPrepatch A_norm: %.17g",
+                    titleColor,
+                    production.normalizedArea()));
+
+            resultStrings.add(String.format(
+                    "%sArea samples/curve: %d",
+                    valueColor,
+                    production.samplesPerCurve()));
+
+            resultStrings.add(String.format(
+                    "%sArea prepatches: %,d/%,d",
+                    valueColor,
+                    production.successfulPrepatches(),
+                    production.attemptedPrepatches()));
+
+            if (production.failedPrepatches() > 0) {
+                resultStrings.add(String.format(
+                        "%sArea failures: %,d",
+                        warnColor,
+                        production.failedPrepatches()));
+            }
+
+            /*
+             * If there is more than one entry, entry 0 is the production area and
+             * entries 1..N are convergence-test results.
+             */
+            if (prepatchAreaResults.size() > 1) {
+                resultStrings.add(titleColor + "Area convergence");
+
+                for (int i = 1; i < prepatchAreaResults.size(); i++) {
+                    PrepatchAreaResult result = prepatchAreaResults.get(i);
+
+                    resultStrings.add(String.format(
+                            "%s  s=%d  A_norm=%.17g",
+                            valueColor,
+                            result.samplesPerCurve(),
+                            result.normalizedArea()));
+                }
+            }
+        }
+        
+        if (prepatchDiagnosticSummary != null
+                && prepatchDiagnosticSummary.validCount() > 0) {
+
+            resultStrings.add(String.format(
+                    "%sPatch A_norm min/max: %.3e / %.3e",
+                    valueColor,
+                    prepatchDiagnosticSummary.minNormalizedArea(),
+                    prepatchDiagnosticSummary.maxNormalizedArea()));
+
+            resultStrings.add(String.format(
+                    "%sTheta range min/max: %.3f%s / %.3f%s",
+                    valueColor,
+                    Math.toDegrees(prepatchDiagnosticSummary.minThetaRange()),
+                    UnicodeUtils.DEGREE,
+                    Math.toDegrees(prepatchDiagnosticSummary.maxThetaRange()),
+                    UnicodeUtils.DEGREE));
+
+            if (prepatchDiagnosticSummary.invalidCount() > 0) {
+                resultStrings.add(String.format(
+                        "%sDiagnostic failures: %,d",
+                        warnColor,
+                        prepatchDiagnosticSummary.invalidCount()));
+            }
+        }
+
+        resultStrings.add(String.format("%sRun time: %d ms",
+                valueColor, duration.toMillis()));
+
+        return resultStrings;
+    }
     
 }

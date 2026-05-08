@@ -45,8 +45,7 @@ public final class MosaicAlgorithmController {
             model.algorithmStarted();
 
             MosaicAlgorithmResult result =
-                    MosaicAlgorithm.run(model.getGridSpec());
-
+                    MosaicAlgorithm.run(model.getGridSpec(), model.getAlgorithmOptions());
             model.setAlgorithmResult(result);
 
             model.algorithmCompleted(String.format(
