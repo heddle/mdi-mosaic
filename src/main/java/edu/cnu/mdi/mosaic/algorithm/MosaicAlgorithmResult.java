@@ -11,6 +11,14 @@ import edu.cnu.mdi.mosaic.diagnostic.PrepatchDiagnosticSummary;
 import edu.cnu.mdi.mosaic.patch.PoleRelation;
 import edu.cnu.mdi.mosaic.patch.PoleStats;
 import edu.cnu.mdi.mosaic.patch.Prepatch;
+import edu.cnu.mdi.mosaic.phi.PhiParentAreaDiagnostics;
+import edu.cnu.mdi.mosaic.phi.PhiPatch;
+import edu.cnu.mdi.mosaic.phi.PhiSpliceConvergenceResult;
+import edu.cnu.mdi.mosaic.phi.PhiSpliceResult;
+import edu.cnu.mdi.mosaic.theta.ThetaParentAreaDiagnostics;
+import edu.cnu.mdi.mosaic.theta.ThetaPatch;
+import edu.cnu.mdi.mosaic.theta.ThetaSpliceConvergenceResult;
+import edu.cnu.mdi.mosaic.theta.ThetaSpliceResult;
 import edu.cnu.mdi.util.UnicodeUtils;
 
 /**
@@ -44,6 +52,27 @@ public final class MosaicAlgorithmResult {
     
     /** Diagnostic summary for ordinary prepatches. */
     private final PrepatchDiagnosticSummary prepatchDiagnosticSummary;
+    
+    /** Theta-spliced patches built after prepatch construction. */
+    private final List<ThetaPatch> thetaPatches;
+
+    /** Theta-splice result and statistics. */
+    private final ThetaSpliceResult thetaSpliceResult;
+    
+    /** Theta-splice convergence diagnostic rows. */
+    private final List<ThetaSpliceConvergenceResult> thetaSpliceConvergenceResults;
+    
+    /** Phi-spliced final patches. */
+    private final List<PhiPatch> phiPatches;
+
+    /** Phi-splice result and statistics. */
+    private final PhiSpliceResult phiSpliceResult;
+
+    /** Phi parent-area diagnostics. */
+    private final PhiParentAreaDiagnostics phiParentAreaDiagnostics;
+
+    /** Phi-splice convergence diagnostic rows. */
+    private final List<PhiSpliceConvergenceResult> phiSpliceConvergenceResults;
 
     /** Total run time. */
     private final Duration duration;
@@ -62,9 +91,13 @@ public final class MosaicAlgorithmResult {
             List<IntersectingCell> deferredPrepatchCells,
             List<PrepatchAreaResult> prepatchAreaResults,
             PrepatchDiagnosticSummary prepatchDiagnosticSummary,
+            ThetaSpliceResult thetaSpliceResult,
+            List<ThetaSpliceConvergenceResult> thetaSpliceConvergenceResults,
+            PhiSpliceResult phiSpliceResult,
+            PhiParentAreaDiagnostics phiParentAreaDiagnostics,
+            List<PhiSpliceConvergenceResult> phiSpliceConvergenceResults,
             MosaicAlgorithmStats stats,
-            Duration duration) {
-    	
+            Duration duration) {   	
         this.intersectingCells = List.copyOf(
                 Objects.requireNonNull(intersectingCells, "intersectingCells"));
 
@@ -77,11 +110,72 @@ public final class MosaicAlgorithmResult {
         this.prepatchDiagnosticSummary = (prepatchDiagnosticSummary == null)
                 ? PrepatchDiagnosticSummary.empty()
                 : prepatchDiagnosticSummary;
+        
+        this.thetaSpliceResult = (thetaSpliceResult == null)
+                ? ThetaSpliceResult.empty()
+                : thetaSpliceResult;
+        
+        this.thetaSpliceConvergenceResults = List.copyOf(
+                thetaSpliceConvergenceResults == null
+                        ? List.of()
+                        : thetaSpliceConvergenceResults);
+
+        this.thetaPatches = this.thetaSpliceResult.thetaPatches();
+        
+        this.phiSpliceResult = (phiSpliceResult == null)
+                ? PhiSpliceResult.empty()
+                : phiSpliceResult;
+
+        this.phiPatches = this.phiSpliceResult.phiPatches();
+
+        this.phiParentAreaDiagnostics = (phiParentAreaDiagnostics == null)
+                ? PhiParentAreaDiagnostics.empty()
+                : phiParentAreaDiagnostics;
+
+        this.phiSpliceConvergenceResults = List.copyOf(
+                phiSpliceConvergenceResults == null
+                        ? List.of()
+                        : phiSpliceConvergenceResults);
 
         this.stats = Objects.requireNonNull(stats, "stats");
         this.duration = Objects.requireNonNull(duration, "duration");
-    }    
+    }  
     
+    /**
+     * Gets theta-splice convergence results.
+     *
+     * @return immutable theta-splice convergence results
+     */
+    public List<ThetaSpliceConvergenceResult> getThetaSpliceConvergenceResults() {
+        return thetaSpliceConvergenceResults;
+    }
+    
+    /**
+     * Gets theta-spliced patches.
+     *
+     * @return immutable theta-patch list
+     */
+    public List<ThetaPatch> getThetaPatches() {
+        return thetaPatches;
+    }
+
+    /**
+     * Gets the theta-splice result.
+     *
+     * @return theta-splice result
+     */
+    public ThetaSpliceResult getThetaSpliceResult() {
+        return thetaSpliceResult;
+    }
+
+    /**
+     * Gets the number of theta patches.
+     *
+     * @return theta-patch count
+     */
+    public int getThetaPatchCount() {
+        return thetaPatches.size();
+    }
     
     /**
      * Gets pole-involvement statistics for ordinary prepatches.
@@ -184,10 +278,14 @@ public final class MosaicAlgorithmResult {
                 List.of(),
                 List.of(),
                 PrepatchDiagnosticSummary.empty(),
+                ThetaSpliceResult.empty(),
+                List.of(),
+                PhiSpliceResult.empty(),
+                PhiParentAreaDiagnostics.empty(),
+                List.of(),
                 MosaicAlgorithmStats.empty(),
                 Duration.ZERO);
-    }
-    
+    }    
     /**
      * Gets the prepatch diagnostic summary.
      *
@@ -209,6 +307,51 @@ public final class MosaicAlgorithmResult {
      */
     public PrepatchAreaResult getProductionPrepatchAreaResult() {
         return prepatchAreaResults.isEmpty() ? null : prepatchAreaResults.get(0);
+    }
+    
+    /**
+     * Gets phi-spliced final patches.
+     *
+     * @return immutable phi-patch list
+     */
+    public List<PhiPatch> getPhiPatches() {
+        return phiPatches;
+    }
+
+    /**
+     * Gets the phi-splice result.
+     *
+     * @return phi-splice result
+     */
+    public PhiSpliceResult getPhiSpliceResult() {
+        return phiSpliceResult;
+    }
+
+    /**
+     * Gets the number of final phi patches.
+     *
+     * @return phi-patch count
+     */
+    public int getPhiPatchCount() {
+        return phiPatches.size();
+    }
+
+    /**
+     * Gets phi parent-area diagnostics.
+     *
+     * @return diagnostics
+     */
+    public PhiParentAreaDiagnostics getPhiParentAreaDiagnostics() {
+        return phiParentAreaDiagnostics;
+    }
+
+    /**
+     * Gets phi-splice convergence results.
+     *
+     * @return convergence rows
+     */
+    public List<PhiSpliceConvergenceResult> getPhiSpliceConvergenceResults() {
+        return phiSpliceConvergenceResults;
     }
     
     /**
@@ -331,6 +474,124 @@ public final class MosaicAlgorithmResult {
                             result.samplesPerCurve(),
                             result.normalizedArea()));
                 }
+            }
+        }
+        
+        if (thetaSpliceResult != null && thetaSpliceResult.stats().thetaPatchesBuilt() > 0) {
+            resultStrings.add(String.format("%sTheta patches: %,d",
+                    valueColor, thetaSpliceResult.stats().thetaPatchesBuilt()));
+
+            resultStrings.add(String.format("%sTheta A_norm: %.17g",
+                    titleColor, thetaSpliceResult.stats().normalizedArea()));
+
+            resultStrings.add(String.format("%sTheta area \u0394: %.3e",
+                    valueColor, thetaSpliceResult.stats().normalizedAreaDelta()));
+
+            if (thetaSpliceResult.stats().failedPrepatches() > 0) {
+                resultStrings.add(String.format("%sTheta failures: %,d",
+                        warnColor, thetaSpliceResult.stats().failedPrepatches()));
+            }
+            
+            if (thetaSpliceResult.stats().handledPolePrepatches() > 0) {
+                resultStrings.add(String.format("%sTheta handled poles: %,d",
+                        valueColor, thetaSpliceResult.stats().handledPolePrepatches()));
+            }
+
+            if (thetaSpliceResult.stats().deferredPolePrepatches() > 0) {
+                resultStrings.add(String.format("%sTheta deferred poles: %,d",
+                        warnColor, thetaSpliceResult.stats().deferredPolePrepatches()));
+            }
+            
+            if (thetaSpliceResult.stats().deferredPolePrepatches() > 0) {
+                resultStrings.add(String.format("%sTheta deferred poles: %,d",
+                        warnColor, thetaSpliceResult.stats().deferredPolePrepatches()));
+            }
+        }
+        
+        if (thetaSpliceConvergenceResults != null
+                && !thetaSpliceConvergenceResults.isEmpty()) {
+
+            resultStrings.add(titleColor + "Theta convergence");
+
+            for (ThetaSpliceConvergenceResult result : thetaSpliceConvergenceResults) {
+                resultStrings.add(String.format(
+                        "%s  s=%d \u0394=%.3e",
+                        valueColor,
+                        result.samplesPerCurve(),
+                        result.deltaNormalizedArea()));
+            }
+        }
+        
+        if (thetaSpliceResult != null
+                && thetaSpliceResult.parentAreaDiagnostics() != null
+                && !thetaSpliceResult.parentAreaDiagnostics().parentErrors().isEmpty()) {
+
+            ThetaParentAreaDiagnostics parentDiag =
+                    thetaSpliceResult.parentAreaDiagnostics();
+
+            resultStrings.add(String.format("%sTheta max parent \u0394: %.3e",
+                    valueColor,
+                    parentDiag.maxAbsDeltaNormalizedArea()));
+
+            resultStrings.add(String.format("%sTheta RMS parent \u0394: %.3e",
+                    valueColor,
+                    parentDiag.rmsDeltaNormalizedArea()));
+        }
+        
+        if (phiSpliceResult != null && phiSpliceResult.stats().phiPatchesBuilt() > 0) {
+            resultStrings.add(String.format("%sFinal patches: %,d",
+                    valueColor, phiSpliceResult.stats().phiPatchesBuilt()));
+
+            resultStrings.add(String.format("%sPhi A_norm: %.17g",
+                    titleColor, phiSpliceResult.stats().normalizedArea()));
+
+            resultStrings.add(String.format("%sPhi area \u0394: %.3e",
+                    valueColor, phiSpliceResult.stats().normalizedAreaDelta()));
+
+            if (phiSpliceResult.stats().failedThetaPatches() > 0) {
+                resultStrings.add(String.format("%sPhi failures: %,d",
+                        warnColor, phiSpliceResult.stats().failedThetaPatches()));
+            }
+            
+            if (phiSpliceResult.stats().deferredPolarThetaPatches() > 0) {
+                resultStrings.add(String.format("%sPhi deferred polar: %,d",
+                        warnColor, phiSpliceResult.stats().deferredPolarThetaPatches()));
+            }
+            
+            if (phiSpliceResult.stats().handledPolarThetaPatches() > 0) {
+                resultStrings.add(String.format("%sPhi handled polar: %,d",
+                        valueColor, phiSpliceResult.stats().handledPolarThetaPatches()));
+            }
+
+            if (phiSpliceResult.stats().deferredPolarThetaPatches() > 0) {
+                resultStrings.add(String.format("%sPhi deferred polar: %,d",
+                        warnColor, phiSpliceResult.stats().deferredPolarThetaPatches()));
+            }
+        }
+
+        if (phiParentAreaDiagnostics != null
+                && !phiParentAreaDiagnostics.parentErrors().isEmpty()) {
+
+            resultStrings.add(String.format("%sPhi max parent \u0394: %.3e",
+                    valueColor,
+                    phiParentAreaDiagnostics.maxAbsDeltaNormalizedArea()));
+
+            resultStrings.add(String.format("%sPhi RMS parent \u0394: %.3e",
+                    valueColor,
+                    phiParentAreaDiagnostics.rmsDeltaNormalizedArea()));
+        }
+
+        if (phiSpliceConvergenceResults != null
+                && !phiSpliceConvergenceResults.isEmpty()) {
+
+            resultStrings.add(titleColor + "Phi convergence");
+
+            for (PhiSpliceConvergenceResult result : phiSpliceConvergenceResults) {
+                resultStrings.add(String.format(
+                        "%s  s=%d \u0394=%.3e",
+                        valueColor,
+                        result.samplesPerMeridianArc(),
+                        result.deltaNormalizedArea()));
             }
         }
         

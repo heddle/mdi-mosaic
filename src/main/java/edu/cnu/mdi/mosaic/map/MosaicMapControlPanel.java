@@ -2,10 +2,9 @@ package edu.cnu.mdi.mosaic.map;
 
 import java.awt.Component;
 import java.awt.Font;
-import java.awt.event.ActionListener;
+import java.awt.GridLayout;
 
 import javax.swing.BorderFactory;
-import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JPanel;
@@ -33,7 +32,7 @@ public class MosaicMapControlPanel extends JPanel {
     private final MapView2D mapView;
 
     /** Control font. */
-    private final Font font = Fonts.plainFontDelta(-2);
+    private final Font font = Fonts.plainFontDelta(-3);
 
     /** Current theme. */
     private MapTheme currentTheme = MapTheme.light();
@@ -55,8 +54,6 @@ public class MosaicMapControlPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
         createProjectionSelector();
-        add(Box.createVerticalStrut(6));
-        createThemeSelector();
     }
 
     /**
@@ -73,7 +70,7 @@ public class MosaicMapControlPanel extends JPanel {
      */
     private void createProjectionSelector() {
         JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setLayout(new GridLayout(3, 2, 4, 2));
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.setBorder(new CommonBorder("Projection"));
 
@@ -108,49 +105,6 @@ public class MosaicMapControlPanel extends JPanel {
         add(panel);
     }
 
-    /**
-     * Creates the theme selector.
-     */
-    private void createThemeSelector() {
-        JPanel panel = new JPanel();
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.setBorder(new CommonBorder("Map Theme"));
-
-        ButtonGroup group = new ButtonGroup();
-
-        JRadioButton light = radio("Light", true);
-        JRadioButton dark = radio("Dark", false);
-        JRadioButton blue = radio("Blue", false);
-
-        ActionListener themeListener = e -> {
-            if (light.isSelected()) {
-                currentTheme = MapTheme.light();
-            } else if (dark.isSelected()) {
-                currentTheme = MapTheme.dark();
-            } else if (blue.isSelected()) {
-                currentTheme = MapTheme.blue();
-            }
-
-            if (mapView.getProjection() != null) {
-                mapView.getProjection().setTheme(currentTheme);
-                mapView.refresh();
-            }
-        };
-
-        light.addActionListener(themeListener);
-        dark.addActionListener(themeListener);
-        blue.addActionListener(themeListener);
-
-        group.add(light);
-        group.add(dark);
-        group.add(blue);
-
-        panel.add(light);
-        panel.add(dark);
-        panel.add(blue);
-
-        add(panel);
-    }
 
     /**
      * Creates a radio button with standard Mosaic map styling.

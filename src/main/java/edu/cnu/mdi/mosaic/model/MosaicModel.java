@@ -12,6 +12,8 @@ import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmResult;
 import edu.cnu.mdi.mosaic.cell.IntersectingCell;
 import edu.cnu.mdi.mosaic.mc.MonteCarloPoint;
 import edu.cnu.mdi.mosaic.patch.Prepatch;
+import edu.cnu.mdi.mosaic.phi.PhiPatch;
+import edu.cnu.mdi.mosaic.theta.ThetaPatch;
 
 /**
  * Shared application model for Mosaic.
@@ -444,6 +446,18 @@ public final class MosaicModel {
 		        algorithmResult.getPrepatches(),
 		        String.format("Built %,d ordinary prepatches.",
 		                algorithmResult.getPrepatchCount()));
+		
+		fireModelChanged(ModelChangedEvent.Type.THETA_PATCHES_CHANGED,
+		        oldResult == null ? null : oldResult.getThetaPatches(),
+		        algorithmResult.getThetaPatches(),
+		        String.format("Built %,d theta patches.",
+		                algorithmResult.getThetaPatchCount()));
+		
+		fireModelChanged(ModelChangedEvent.Type.PATCHES_CHANGED,
+		        oldResult == null ? null : oldResult.getPhiPatches(),
+		        algorithmResult.getPhiPatches(),
+		        String.format("Built %,d final phi patches.",
+		                algorithmResult.getPhiPatchCount()));
 	}
 	
 	/**
@@ -462,6 +476,42 @@ public final class MosaicModel {
 	 */
 	public int getPrepatchCount() {
 	    return algorithmResult.getPrepatchCount();
+	}
+	
+	/**
+	 * Gets theta patches from the current algorithm result.
+	 *
+	 * @return immutable theta-patch list
+	 */
+	public List<ThetaPatch> getThetaPatches() {
+	    return algorithmResult.getThetaPatches();
+	}
+
+	/**
+	 * Gets the number of theta patches.
+	 *
+	 * @return theta-patch count
+	 */
+	public int getThetaPatchCount() {
+	    return algorithmResult.getThetaPatchCount();
+	}	
+	
+	/**
+	 * Gets final phi patches from the current algorithm result.
+	 *
+	 * @return immutable phi-patch list
+	 */
+	public List<PhiPatch> getPhiPatches() {
+	    return algorithmResult.getPhiPatches();
+	}
+
+	/**
+	 * Gets final phi-patch count.
+	 *
+	 * @return phi-patch count
+	 */
+	public int getPhiPatchCount() {
+	    return algorithmResult.getPhiPatchCount();
 	}
 	
 	/**
@@ -517,6 +567,16 @@ public final class MosaicModel {
 		        oldResult == null ? null : oldResult.getPrepatches(),
 		        algorithmResult.getPrepatches(),
 		        "Prepatches cleared.");
+		
+		fireModelChanged(ModelChangedEvent.Type.THETA_PATCHES_CHANGED,
+		        oldResult == null ? null : oldResult.getThetaPatches(),
+		        algorithmResult.getThetaPatches(),
+		        "Theta patches cleared.");
+		
+		fireModelChanged(ModelChangedEvent.Type.PATCHES_CHANGED,
+		        oldResult == null ? null : oldResult.getPhiPatches(),
+		        algorithmResult.getPhiPatches(),
+		        "Final patches cleared.");
 	}
 
 	/**

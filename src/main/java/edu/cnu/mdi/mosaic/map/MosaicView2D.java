@@ -24,6 +24,8 @@ import edu.cnu.mdi.mosaic.mc.MonteCarloPoint;
 import edu.cnu.mdi.mosaic.model.MosaicModel;
 import edu.cnu.mdi.mosaic.patch.GeneralCurve;
 import edu.cnu.mdi.mosaic.patch.Prepatch;
+import edu.cnu.mdi.mosaic.phi.PhiPatch;
+import edu.cnu.mdi.mosaic.theta.ThetaPatch;
 import edu.cnu.mdi.ui.colors.ScientificColorMap;
 import edu.cnu.mdi.util.PropertyUtils;
 import edu.cnu.mdi.util.UnicodeUtils;
@@ -82,7 +84,27 @@ public class MosaicView2D extends MapView2D {
 
 	/** Prepatch boundary stroke width. */
 	private float prepatchStrokeWidth = 1.0f;
+	
+	/** Whether theta patch boundaries are drawn. */
+	private boolean showThetaPatches = false;
 
+	/** Theta patch boundary color. */
+	private Color thetaPatchColor = new Color(180, 0, 0, 180);
+
+	/** Theta patch stroke width. */
+	private float thetaPatchStrokeWidth = 0.8f;
+	
+	/** Whether final phi-patch boundaries are drawn. */
+	private boolean showFinalPatches = false;
+
+	/** Final phi-patch boundary color. */
+//	private Color finalPatchColor = new Color(0, 120, 255, 190);
+
+	/** Final phi-patch stroke width. */
+//	private float finalPatchStrokeWidth = 0.75f;
+
+	private Color finalPatchColor = new Color(255, 0, 255, 220);
+	private float finalPatchStrokeWidth = 1.0f;
 	/**
 	 * Creates the Mosaic 2D view.
 	 *
@@ -149,9 +171,196 @@ public class MosaicView2D extends MapView2D {
 		drawPhiLines(g, container);
 
 		// Draw theta lines (latitudes, sort of)
-		drawThetaLines(g, container);
+	//	drawThetaLines(g, container);
 
+		// Draw prepatch boundaries
 		drawPrepatches(g, container);
+		
+		// Draw final phi-patch boundaries
+		drawThetaPatches(g, container);
+		
+		drawFinalPatches(g, container);
+	}
+	
+	/**
+	 * Draws final phi-patch boundaries.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 */
+	private void drawFinalPatches(Graphics2D g, IContainer container) {
+	    if (!showFinalPatches || model.getPhiPatchCount() == 0) {
+	        return;
+	    }
+
+	    IMapProjection projection = getProjection();
+
+	    Color oldColor = g.getColor();
+	    Stroke oldStroke = g.getStroke();
+
+	    g.setColor(finalPatchColor);
+	    g.setStroke(new BasicStroke(finalPatchStrokeWidth));
+
+	    for (PhiPatch patch : model.getPhiPatches()) {
+	        drawFinalPatch(g, container, projection, patch);
+	    }
+
+	    g.setColor(oldColor);
+	    g.setStroke(oldStroke);
+	}
+
+	/**
+	 * Draws one final phi patch boundary.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 * @param projection active projection
+	 * @param patch final phi patch
+	 */
+	private void drawFinalPatch(Graphics2D g, IContainer container,
+	        IMapProjection projection, PhiPatch patch) {
+
+	    if (patch == null || patch.boundary().size() < 2) {
+	        return;
+	    }
+
+	    Path2D.Double path = new Path2D.Double();
+
+	    Point2D.Double latLon = new Point2D.Double();
+	    Point2D.Double xy = new Point2D.Double();
+	    Point screen = new Point();
+
+	    boolean started = false;
+	    double previousLon = Double.NaN;
+
+	    for (Vec3 p : patch.boundary()) {
+	        if (!gsmToLatLon(p, latLon)) {
+	            started = false;
+	            previousLon = Double.NaN;
+	            continue;
+	        }
+
+	        if (Double.isFinite(previousLon)
+	                && projection.crossesSeam(previousLon, latLon.x)) {
+	            started = false;
+	        }
+
+	        projection.latLonToXY(latLon, xy);
+
+	        if (!Double.isFinite(xy.x)
+	                || !Double.isFinite(xy.y)
+	                || !projection.isPointOnMap(xy)) {
+	            started = false;
+	            previousLon = latLon.x;
+	            continue;
+	        }
+
+	        container.worldToLocal(screen, xy);
+
+	        if (!started) {
+	            path.moveTo(screen.x, screen.y);
+	            started = true;
+	        } else {
+	            path.lineTo(screen.x, screen.y);
+	        }
+
+	        previousLon = latLon.x;
+	    }
+
+	    g.draw(path);
+	}
+	
+	/**
+	 * Draws theta-patch boundaries.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 */
+	private void drawThetaPatches(Graphics2D g, IContainer container) {
+	    if (!showThetaPatches || model.getThetaPatchCount() == 0) {
+	        return;
+	    }
+
+	    IMapProjection projection = getProjection();
+
+	    Color oldColor = g.getColor();
+	    Stroke oldStroke = g.getStroke();
+
+	    g.setColor(thetaPatchColor);
+	    g.setStroke(new BasicStroke(thetaPatchStrokeWidth));
+
+	    for (ThetaPatch patch : model.getThetaPatches()) {
+	        drawThetaPatch(g, container, projection, patch);
+	    }
+
+	    g.setColor(oldColor);
+	    g.setStroke(oldStroke);
+	}
+
+	/**
+	 * Draws one theta patch boundary.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 * @param projection active projection
+	 * @param patch theta patch
+	 */
+	private void drawThetaPatch(Graphics2D g, IContainer container,
+	        IMapProjection projection, ThetaPatch patch) {
+
+	    if (patch == null || patch.boundary().size() < 2) {
+	        return;
+	    }
+
+	    Path2D.Double path = new Path2D.Double();
+
+	    Point2D.Double latLon = new Point2D.Double();
+	    Point2D.Double xy = new Point2D.Double();
+	    Point screen = new Point();
+
+	    boolean started = false;
+	    double previousLon = Double.NaN;
+
+	    for (Vec3 p : patch.boundary()) {
+	        if (!gsmToLatLon(p, latLon)) {
+	            started = false;
+	            previousLon = Double.NaN;
+	            continue;
+	        }
+
+	        if (Double.isFinite(previousLon)
+	                && projection.crossesSeam(previousLon, latLon.x)) {
+	            started = false;
+	        }
+
+	        projection.latLonToXY(latLon, xy);
+
+	        if (!Double.isFinite(xy.x)
+	                || !Double.isFinite(xy.y)
+	                || !projection.isPointOnMap(xy)) {
+	            started = false;
+	            previousLon = latLon.x;
+	            continue;
+	        }
+
+	        container.worldToLocal(screen, xy);
+
+	        if (!started) {
+	            path.moveTo(screen.x, screen.y);
+	            started = true;
+	        } else {
+	            path.lineTo(screen.x, screen.y);
+	        }
+
+	        previousLon = latLon.x;
+	    }
+
+	    /*
+	     * Close the visible path only if the last and first projected points are not
+	     * separated by a projection seam. For cylindrical projections this avoids
+	     * long false lines across the map.
+	     */
+	    g.draw(path);
 	}
 
 	/**
@@ -409,7 +618,7 @@ public class MosaicView2D extends MapView2D {
 	 * @return the side panel width in pixels
 	 */
 	protected int getSidePanelWidth() {
-		return 260;
+		return 270;
 	}
 
 	/**
@@ -513,6 +722,56 @@ public class MosaicView2D extends MapView2D {
 	 */
 	public void setPrepatchStrokeWidth(float width) {
 	    prepatchStrokeWidth = Math.max(0.25f, width);
+	    refresh();
+	}
+	
+	public void setThetaPatchesVisible(boolean visible) {
+	    showThetaPatches = visible;
+	    refresh();
+	}
+
+	public boolean isThetaPatchesVisible() {
+	    return showThetaPatches;
+	}
+	
+	/**
+	 * Sets whether final phi-patch boundaries are visible.
+	 *
+	 * @param visible true to show final patches
+	 */
+	public void setFinalPatchesVisible(boolean visible) {
+	    showFinalPatches = visible;
+	    refresh();
+	}
+
+	/**
+	 * Checks whether final phi-patch boundaries are visible.
+	 *
+	 * @return true if final patches are visible
+	 */
+	public boolean isFinalPatchesVisible() {
+	    return showFinalPatches;
+	}
+
+	/**
+	 * Sets the final phi-patch boundary color.
+	 *
+	 * @param color boundary color; ignored if null
+	 */
+	public void setFinalPatchColor(Color color) {
+	    if (color != null) {
+	        finalPatchColor = color;
+	        refresh();
+	    }
+	}
+
+	/**
+	 * Sets the final phi-patch stroke width.
+	 *
+	 * @param width stroke width in pixels
+	 */
+	public void setFinalPatchStrokeWidth(float width) {
+	    finalPatchStrokeWidth = Math.max(0.25f, width);
 	    refresh();
 	}
 
