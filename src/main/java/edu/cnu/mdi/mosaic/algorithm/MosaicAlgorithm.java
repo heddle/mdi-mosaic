@@ -26,6 +26,7 @@ import edu.cnu.mdi.mosaic.phi.PhiSpliceFailure;
 import edu.cnu.mdi.mosaic.phi.PhiSpliceResult;
 import edu.cnu.mdi.mosaic.phi.PhiSpliceStats;
 import edu.cnu.mdi.mosaic.phi.PhiSplicer;
+import edu.cnu.mdi.mosaic.phi.PhiWorstParentChildDiagnostics;
 import edu.cnu.mdi.mosaic.phi.PolarPhiSplicer;
 import edu.cnu.mdi.mosaic.theta.ThetaParentAreaDiagnosticBuilder;
 import edu.cnu.mdi.mosaic.theta.ThetaParentAreaDiagnostics;
@@ -258,14 +259,20 @@ public final class MosaicAlgorithm {
 		}
 
 		if (!phiParentDiagnostics.parentErrors().isEmpty()) {
-			Log.getInstance().info("Worst phi parent area errors:");
+		    Log.getInstance().info("Worst phi parent area errors:");
 
-			int n = Math.min(10, phiParentDiagnostics.parentErrors().size());
-			for (PhiParentAreaError error : phiParentDiagnostics.worstErrors(n)) {
-				Log.getInstance().info("  " + error.summaryLine());
-			}
+		    int n = Math.min(10, phiParentDiagnostics.parentErrors().size());
+		    for (PhiParentAreaError error : phiParentDiagnostics.worstErrors(n)) {
+		        Log.getInstance().info("  " + error.summaryLine());
+		    }
+
+		    PhiWorstParentChildDiagnostics.log(
+		            phiParentDiagnostics,
+		            thetaResult.thetaPatches(),
+		            phiResult.phiPatches(),
+		            gridSpec.getSphericalGrid().getPhiGrid(),
+		            4);
 		}
-
 		if (!phiResult.failures().isEmpty()) {
 			Log.getInstance().warning("First phi splice failures/deferrals:");
 

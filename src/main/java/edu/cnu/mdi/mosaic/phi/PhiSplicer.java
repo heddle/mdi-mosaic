@@ -442,11 +442,13 @@ public final class PhiSplicer {
     }
 
     /**
-     * Finds an approximate intersection of a spherical edge with a local phi cut.
+     * Finds the intersection of a spherical edge with a local phi cut.
      * <p>
-     * This deliberately projects to the specific meridian ray
-     * {@code phiCenter + uCut}, avoiding the antipodal meridian ambiguity of the
-     * full meridian plane.
+     * The old implementation interpolated linearly in phi. That is unreliable
+     * near the poles because phi changes rapidly and can become nearly singular.
+     * This version first computes the exact intersection of the great-circle
+     * edge plane with the requested meridian plane. If that degenerates, it
+     * falls back to the old approximate method.
      * </p>
      *
      * @param a start point
@@ -467,24 +469,166 @@ public final class PhiSplicer {
             double uA,
             double uB) {
 
+        double phiCut = normalizeAngle(phiCenter + uCut);
+
+        Vec3 exact = exactGreatCircleMeridianIntersection(
+                a,
+                b,
+                radius,
+                phiCut);
+
+        if (exact != null) {
+            return exact;
+        }
+
+        /*
+         * Fallback: the old approximate construction. This should now only be used
+         * for degenerate or nearly degenerate edge/meridian cases.
+         */
         double denom = uB - uA;
 
         if (Math.abs(denom) < TOL) {
-            return projectToPhiMeridian(a, radius, phiCenter + uCut);
+            return projectToPhiMeridian(a, radius, phiCut);
         }
 
         double t = (uCut - uA) / denom;
         t = clamp(t, 0.0, 1.0);
 
-        /*
-         * Slerp keeps the intersection on the sphere. Then project to the specific
-         * meridian ray to remove any tiny numerical drift.
-         */
         Vec3 p = slerp(a, b, radius, t);
-        return projectToPhiMeridian(p, radius, phiCenter + uCut);
+        return projectToPhiMeridian(p, radius, phiCut);
+    }
+    
+    /**
+     * Finds the exact intersection between the great-circle arc from {@code a}
+     * to {@code b} and the meridian ray at {@code phi}.
+     *
+     * @param a start point
+     * @param b end point
+     * @param radius radius
+     * @param phi target meridian ray
+     * @return intersection point, or null if the exact construction degenerates
+     */
+    private static Vec3 exactGreatCircleMeridianIntersection(
+            Vec3 a,
+            Vec3 b,
+            double radius,
+            double phi) {
+
+        Vec3 ua = normalizeToRadius(a, 1.0);
+        Vec3 ub = normalizeToRadius(b, 1.0);
+
+        Vec3 greatCircleNormal = cross(ua, ub);
+
+        if (greatCircleNormal.norm() < 1.0e-14) {
+            return null;
+        }
+
+        /*
+         * Points on the meridian plane satisfy:
+         *
+         *     -sin(phi) x + cos(phi) y = 0
+         *
+         * This is the full meridian plane. We later choose the point on the
+         * requested meridian ray rather than the antipodal ray.
+         */
+        double c = Math.cos(phi);
+        double s = Math.sin(phi);
+
+        Vec3 meridianNormal = new Vec3(-s, c, 0.0);
+
+        Vec3 line = cross(greatCircleNormal, meridianNormal);
+
+        if (line.norm() < 1.0e-14) {
+            /*
+             * The edge great circle and meridian plane are nearly the same plane.
+             * There is no unique crossing point to compute here.
+             */
+            return null;
+        }
+
+        Vec3 p = normalizeToRadius(line, radius);
+
+        /*
+         * Pick the point on the requested meridian ray, not the antipodal ray.
+         */
+        double rayDot = p.x() * c + p.y() * s;
+
+        if (rayDot < 0.0) {
+            p = negate(p);
+        }
+
+        /*
+         * Verify that the chosen point lies on the short great-circle arc between
+         * a and b. If not, this exact plane intersection is not the segment
+         * crossing we want.
+         */
+        Vec3 up = normalizeToRadius(p, 1.0);
+
+        if (!isOnShortGreatCircleArc(ua, ub, up)) {
+            return null;
+        }
+
+        /*
+         * Force the point onto the requested meridian ray to remove roundoff.
+         * This preserves z, so the point remains on the sphere.
+         */
+        return projectToPhiMeridian(p, radius, phi);
     }
 
- 
+    /**
+     * Checks whether a point lies on the minor great-circle arc from a to b.
+     *
+     * @param a unit start point
+     * @param b unit end point
+     * @param p unit test point
+     * @return true if p lies on the short arc
+     */
+    private static boolean isOnShortGreatCircleArc(Vec3 a, Vec3 b, Vec3 p) {
+        double ab = angleBetween(a, b);
+        double ap = angleBetween(a, p);
+        double pb = angleBetween(p, b);
+
+        double err = Math.abs((ap + pb) - ab);
+
+        return err <= 1.0e-8
+                || ap <= 1.0e-10
+                || pb <= 1.0e-10;
+    }
+
+    /**
+     * Angular separation of two unit vectors.
+     *
+     * @param a first unit vector
+     * @param b second unit vector
+     * @return angle in radians
+     */
+    private static double angleBetween(Vec3 a, Vec3 b) {
+        return Math.acos(clamp(dot(a, b), -1.0, 1.0));
+    }
+
+    /**
+     * Cross product.
+     *
+     * @param a first vector
+     * @param b second vector
+     * @return a cross b
+     */
+    private static Vec3 cross(Vec3 a, Vec3 b) {
+        return new Vec3(
+                a.y() * b.z() - a.z() * b.y(),
+                a.z() * b.x() - a.x() * b.z(),
+                a.x() * b.y() - a.y() * b.x());
+    }
+
+    /**
+     * Negates a vector.
+     *
+     * @param v vector
+     * @return -v
+     */
+    private static Vec3 negate(Vec3 v) {
+        return new Vec3(-v.x(), -v.y(), -v.z());
+    }
 
     /**
      * Determines whether two adjacent points lie on the same local phi boundary.
