@@ -68,37 +68,31 @@ public final class PhiSplicer {
             throw new IllegalArgumentException("radius must be positive and finite.");
         }
 
-        ArrayList<PhiPatch> phiPatches = new ArrayList<>();
+        ArrayList<PhiPatch> rawPhiFragments = new ArrayList<>();
         ArrayList<PhiSpliceFailure> failures = new ArrayList<>();
 
-        double totalArea = 0.0;
         int failedThetaPatches = 0;
-        int deferredPolarThetaPatches = 0;
+        int polarThetaPatchesProcessed = 0;
 
         for (ThetaPatch thetaPatch : thetaPatches) {
             if (thetaPatch == null || thetaPatch.boundary().size() < 3) {
                 continue;
             }
 
-            if (thetaPatch.parentPoleClassification() != null
-                    && thetaPatch.parentPoleClassification().hasPoleInvolvement()) {
-                deferredPolarThetaPatches++;
+            boolean polarDerived = thetaPatch.parentPoleClassification() != null
+                    && thetaPatch.parentPoleClassification().hasPoleInvolvement();
 
-                failures.add(new PhiSpliceFailure(
-                        thetaPatch.parentCellId(),
-                        thetaPatch.ntheta(),
-                        "deferred polar-derived theta patch: "
-                                + thetaPatch.parentPoleClassification()));
-
-                continue;
+            if (polarDerived) {
+                polarThetaPatchesProcessed++;
             }
-
 
             int builtForTheta = 0;
 
             /*
-             * The robust initial implementation simply tests all phi cells. This
-             * avoids seam assumptions and is fast enough at current grid sizes.
+             * Test all phi cells. This is intentionally done for both ordinary and
+             * polar-derived theta patches. Polar-derived patches may contain internal
+             * fan construction edges, but those are removed later by the final
+             * canonicalizer.
              */
             for (int nphi = 0; nphi < phiGrid.numCells(); nphi++) {
                 double phi0 = phiGrid.valueAt(nphi);
@@ -124,7 +118,7 @@ public final class PhiSplicer {
                 double area = radius * radius * unitArea;
                 double normalizedArea = unitArea / (4.0 * Math.PI);
 
-                phiPatches.add(new PhiPatch(
+                rawPhiFragments.add(new PhiPatch(
                         thetaPatch.parentCellId(),
                         thetaPatch.ntheta(),
                         nphi,
@@ -133,7 +127,6 @@ public final class PhiSplicer {
                         normalizedArea,
                         thetaPatch.parentPoleClassification()));
 
-                totalArea += area;
                 builtForTheta++;
             }
 
@@ -143,7 +136,47 @@ public final class PhiSplicer {
                 failures.add(new PhiSpliceFailure(
                         thetaPatch.parentCellId(),
                         thetaPatch.ntheta(),
-                        "no phi patches built from theta-patch boundary"));
+                        polarDerived
+                                ? "no phi patches built from polar-derived theta-patch boundary"
+                                : "no phi patches built from theta-patch boundary"));
+            }
+        }
+
+        List<PhiPatch> phiPatches =
+                FinalPhiPatchCanonicalizer.canonicalize(rawPhiFragments, radius);
+
+        long rawPolar = rawPhiFragments.stream()
+                .filter(p -> p.parentPoleClassification() != null
+                        && p.parentPoleClassification().hasPoleInvolvement())
+                .count();
+
+        long finalPolar = phiPatches.stream()
+                .filter(p -> p.parentPoleClassification() != null
+                        && p.parentPoleClassification().hasPoleInvolvement())
+                .count();
+
+        long polarAggregates = phiPatches.stream()
+                .filter(PhiPatch::isPolarAggregate)
+                .count();
+
+        System.out.printf(
+                "Phi canonicalization: raw=%d rawPolar=%d final=%d finalPolar=%d polarAggregates=%d polarThetaProcessed=%d%n",
+                rawPhiFragments.size(),
+                rawPolar,
+                phiPatches.size(),
+                finalPolar,
+                polarAggregates,
+                polarThetaPatchesProcessed);
+
+        double totalArea = 0.0;
+        int polarPhiPatchesBuilt = 0;
+
+        for (PhiPatch patch : phiPatches) {
+            totalArea += patch.area();
+
+            if (patch.parentPoleClassification() != null
+                    && patch.parentPoleClassification().hasPoleInvolvement()) {
+                polarPhiPatchesBuilt++;
             }
         }
 
@@ -153,12 +186,12 @@ public final class PhiSplicer {
                 thetaPatches.size(),
                 phiPatches.size(),
                 failedThetaPatches,
-                deferredPolarThetaPatches,
                 0,
+                polarPhiPatchesBuilt,
                 totalArea,
                 normalizedArea,
                 referenceNormalizedArea);
-        
+
         return new PhiSpliceResult(phiPatches, failures, stats);
     }
 

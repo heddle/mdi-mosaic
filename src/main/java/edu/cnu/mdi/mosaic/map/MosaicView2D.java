@@ -22,8 +22,10 @@ import edu.cnu.mdi.mosaic.grid.Grid1D;
 import edu.cnu.mdi.mosaic.grid.SphericalGrid;
 import edu.cnu.mdi.mosaic.mc.MonteCarloPoint;
 import edu.cnu.mdi.mosaic.model.MosaicModel;
+import edu.cnu.mdi.mosaic.patch.FinalPatchBoundaryCanonicalizer;
 import edu.cnu.mdi.mosaic.patch.GeneralCurve;
 import edu.cnu.mdi.mosaic.patch.Prepatch;
+import edu.cnu.mdi.mosaic.phi.PhiParentAreaError;
 import edu.cnu.mdi.mosaic.phi.PhiPatch;
 import edu.cnu.mdi.mosaic.theta.ThetaPatch;
 import edu.cnu.mdi.ui.colors.ScientificColorMap;
@@ -93,18 +95,51 @@ public class MosaicView2D extends MapView2D {
 
 	/** Theta patch stroke width. */
 	private float thetaPatchStrokeWidth = 0.8f;
+
+	/** Whether spherical grid guide lines are drawn. */
+	private boolean showSphericalGridLines = true;
 	
-	/** Whether final phi-patch boundaries are drawn. */
+	/** Whether non-polar final phi-patch boundaries are drawn. */
 	private boolean showFinalPatches = false;
 
-	/** Final phi-patch boundary color. */
-//	private Color finalPatchColor = new Color(0, 120, 255, 190);
+	/** Whether polar-derived final phi-patch boundaries are drawn. */
+	private boolean showPolarFinalPatches = false;
 
-	/** Final phi-patch stroke width. */
-//	private float finalPatchStrokeWidth = 0.75f;
+	private Color finalPatchColor = new Color(255, 0, 255, 180);       // magenta
+	private float finalPatchStrokeWidth = 0.75f;
 
-	private Color finalPatchColor = new Color(255, 0, 255, 220);
-	private float finalPatchStrokeWidth = 1.0f;
+	private Color polarFinalPatchColor = new Color(255, 120, 0, 255);  // orange
+
+	/** Polar-derived final phi-patch stroke width. */
+	private float polarFinalPatchStrokeWidth = 3.0f;
+
+	/** Draw only every Nth polar boundary edge; 1 draws all. */
+	private int polarFinalPatchBoundaryStride = 1;
+	
+	/** Whether worst phi-parent area errors are highlighted. */
+	private boolean showWorstPhiParentErrors = false;
+
+	/** Number of worst phi-parent errors to highlight. */
+	private int worstPhiParentErrorCount = 10;
+
+	/** Worst phi-parent error highlight color. */
+	private Color worstPhiParentErrorColor = new Color(255, 80, 0, 230);
+
+	/** Worst phi-parent error highlight stroke width. */
+	private float worstPhiParentErrorStrokeWidth = 2.25f;
+	
+	/** Whether phi children of worst phi-parent errors are highlighted. */
+	private boolean showWorstPhiChildren = false;
+
+	/** Number of worst phi-parent errors whose children are highlighted. */
+	private int worstPhiChildrenParentCount = 2;
+
+	/** Worst phi-child highlight color. */
+	private Color worstPhiChildColor = new Color(0, 80, 255, 230);
+
+	/** Worst phi-child highlight stroke width. */
+	private float worstPhiChildStrokeWidth = 2.0f;
+	
 	/**
 	 * Creates the Mosaic 2D view.
 	 *
@@ -167,19 +202,208 @@ public class MosaicView2D extends MapView2D {
 
 		drawMonteCarloPoints(g, container);
 
-		// Draw phi lines (longitudes)
-		drawPhiLines(g, container);
+		if (showSphericalGridLines) {
+		    // Draw phi lines (longitudes)
+		    drawPhiLines(g, container);
 
-		// Draw theta lines (latitudes, sort of)
-	//	drawThetaLines(g, container);
-
+		    // Draw theta lines (latitudes, sort of)
+		    drawThetaLines(g, container);
+		}
 		// Draw prepatch boundaries
 		drawPrepatches(g, container);
-		
-		// Draw final phi-patch boundaries
+
+		// Draw theta-patch boundaries
 		drawThetaPatches(g, container);
-		
+
+		// Draw final phi-patch boundaries
 		drawFinalPatches(g, container);
+
+		// Draw worst phi-parent area errors last so they sit on top
+		drawWorstPhiParentErrors(g, container);
+
+		// Draw phi children of the worst phi-parent area errors last
+		drawWorstPhiChildren(g, container);	}
+
+	
+	/**
+	 * Sets whether the spherical grid guide lines are visible.
+	 *
+	 * @param visible true to show spherical grid guide lines
+	 */
+	public void setSphericalGridLinesVisible(boolean visible) {
+	    showSphericalGridLines = visible;
+	    refresh();
+	}
+
+	/**
+	 * Checks whether the spherical grid guide lines are visible.
+	 *
+	 * @return true if visible
+	 */
+	public boolean isSphericalGridLinesVisible() {
+	    return showSphericalGridLines;
+	}
+	
+	/**
+	 * Draws highlighted final phi-patch children for the theta parents with the
+	 * worst phi-splice area closure errors.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 */
+	private void drawWorstPhiChildren(Graphics2D g, IContainer container) {
+	    if (!showWorstPhiChildren) {
+	        return;
+	    }
+
+	    MosaicAlgorithmResult result = model.getAlgorithmResult();
+
+	    if (result == null
+	            || result.getPhiParentAreaDiagnostics() == null
+	            || result.getPhiParentAreaDiagnostics().parentErrors().isEmpty()
+	            || model.getPhiPatchCount() == 0) {
+	        return;
+	    }
+
+	    IMapProjection projection = getProjection();
+
+	    Color oldColor = g.getColor();
+	    Stroke oldStroke = g.getStroke();
+
+	    g.setColor(worstPhiChildColor);
+	    g.setStroke(new BasicStroke(worstPhiChildStrokeWidth));
+
+	    int count = Math.max(1, worstPhiChildrenParentCount);
+
+	    for (PhiParentAreaError error :
+	            result.getPhiParentAreaDiagnostics().worstErrors(count)) {
+
+	        drawPhiChildrenForParentError(g, container, projection, error);
+	    }
+
+	    g.setColor(oldColor);
+	    g.setStroke(oldStroke);
+	}
+	
+	/**
+	 * Draws all final phi-patch children corresponding to one phi-parent area
+	 * diagnostic error.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 * @param projection active projection
+	 * @param error parent area error
+	 */
+	private void drawPhiChildrenForParentError(Graphics2D g,
+	        IContainer container,
+	        IMapProjection projection,
+	        PhiParentAreaError error) {
+
+	    if (error == null || error.key() == null) {
+	        return;
+	    }
+
+	    for (PhiPatch patch : model.getPhiPatches()) {
+	        if (isChildOfPhiParentError(patch, error)) {
+	            drawFinalPatch(g, container, projection, patch, 1);
+	        }
+	    }
+	}
+	
+	/**
+	 * Draws highlighted boundaries for the theta parents with the worst phi-splice
+	 * area closure errors.
+	 *
+	 * @param g graphics context
+	 * @param container map container
+	 */
+	private void drawWorstPhiParentErrors(Graphics2D g, IContainer container) {
+	    if (!showWorstPhiParentErrors) {
+	        return;
+	    }
+
+	    MosaicAlgorithmResult result = model.getAlgorithmResult();
+
+	    if (result == null
+	            || result.getPhiParentAreaDiagnostics() == null
+	            || result.getPhiParentAreaDiagnostics().parentErrors().isEmpty()
+	            || model.getThetaPatchCount() == 0) {
+	        return;
+	    }
+
+	    IMapProjection projection = getProjection();
+
+	    Color oldColor = g.getColor();
+	    Stroke oldStroke = g.getStroke();
+
+	    g.setColor(worstPhiParentErrorColor);
+	    g.setStroke(new BasicStroke(worstPhiParentErrorStrokeWidth));
+
+	    int count = Math.max(1, worstPhiParentErrorCount);
+
+	    for (PhiParentAreaError error :
+	            result.getPhiParentAreaDiagnostics().worstErrors(count)) {
+
+	        ThetaPatch thetaPatch = findThetaPatchForPhiParentError(error);
+
+	        if (thetaPatch != null) {
+	            drawThetaPatch(g, container, projection, thetaPatch);
+	        }
+	    }
+
+	    g.setColor(oldColor);
+	    g.setStroke(oldStroke);
+	}
+	
+	/**
+	 * Checks whether a final phi patch is a child of the theta parent identified by
+	 * a phi-parent area error.
+	 *
+	 * @param patch final phi patch
+	 * @param error phi-parent area error
+	 * @return true if the patch is one of the children of the error parent
+	 */
+	private static boolean isChildOfPhiParentError(
+	        PhiPatch patch,
+	        PhiParentAreaError error) {
+
+	    if (patch == null || error == null || error.key() == null) {
+	        return false;
+	    }
+
+	    if (patch.ntheta() != error.key().ntheta()) {
+	        return false;
+	    }
+
+	    return patch.parentCellId().equals(error.key().cellId());
+	}
+	
+	/**
+	 * Finds the theta patch corresponding to a phi-parent area error.
+	 *
+	 * @param error phi-parent area error
+	 * @return matching theta patch, or {@code null}
+	 */
+	private ThetaPatch findThetaPatchForPhiParentError(PhiParentAreaError error) {
+	    if (error == null || error.key() == null) {
+	        return null;
+	    }
+
+	    for (ThetaPatch thetaPatch : model.getThetaPatches()) {
+	        if (thetaPatch == null) {
+	            continue;
+	        }
+
+	        if (thetaPatch.ntheta() != error.key().ntheta()) {
+	            continue;
+	        }
+
+	        if (thetaPatch.parentCellId().equals(error.key().cellId())) {
+	            return thetaPatch;
+	        }
+	    }
+
+	    return null;
 	}
 	
 	/**
@@ -189,7 +413,8 @@ public class MosaicView2D extends MapView2D {
 	 * @param container map container
 	 */
 	private void drawFinalPatches(Graphics2D g, IContainer container) {
-	    if (!showFinalPatches || model.getPhiPatchCount() == 0) {
+	    if ((!showFinalPatches && !showPolarFinalPatches)
+	            || model.getPhiPatchCount() == 0) {
 	        return;
 	    }
 
@@ -198,11 +423,33 @@ public class MosaicView2D extends MapView2D {
 	    Color oldColor = g.getColor();
 	    Stroke oldStroke = g.getStroke();
 
-	    g.setColor(finalPatchColor);
-	    g.setStroke(new BasicStroke(finalPatchStrokeWidth));
+	    /*
+	     * Draw non-polar first, then polar. This makes it easy to inspect the pole
+	     * special handling without letting it dominate the entire overlay unless the
+	     * polar toggle is explicitly enabled.
+	     */
+	    if (showFinalPatches) {
+	        g.setColor(finalPatchColor);
+	        g.setStroke(new BasicStroke(finalPatchStrokeWidth));
 
-	    for (PhiPatch patch : model.getPhiPatches()) {
-	        drawFinalPatch(g, container, projection, patch);
+	        for (PhiPatch patch : model.getPhiPatches()) {
+	            if (!isPolarFinalPatch(patch)) {
+	                drawFinalPatch(g, container, projection, patch, 1);
+	            }
+	        }
+	    }
+
+	    if (showPolarFinalPatches) {
+	        g.setColor(polarFinalPatchColor);
+	        g.setStroke(new BasicStroke(polarFinalPatchStrokeWidth));
+
+	        int stride = Math.max(1, polarFinalPatchBoundaryStride);
+
+	        for (PhiPatch patch : model.getPhiPatches()) {
+	            if (isPolarFinalPatch(patch)) {
+	                drawFinalPatch(g, container, projection, patch, stride);
+	            }
+	        }
 	    }
 
 	    g.setColor(oldColor);
@@ -216,13 +463,23 @@ public class MosaicView2D extends MapView2D {
 	 * @param container map container
 	 * @param projection active projection
 	 * @param patch final phi patch
+	 * @param boundaryStride draw every Nth boundary point; 1 draws all
 	 */
 	private void drawFinalPatch(Graphics2D g, IContainer container,
-	        IMapProjection projection, PhiPatch patch) {
+	        IMapProjection projection, PhiPatch patch, int boundaryStride) {
 
 	    if (patch == null || patch.boundary().size() < 2) {
 	        return;
 	    }
+
+	    List<Vec3> boundary =
+	            FinalPatchBoundaryCanonicalizer.canonicalize(patch.boundary());
+
+	    if (boundary.size() < 2) {
+	        return;
+	    }
+
+	    int stride = Math.max(1, boundaryStride);
 
 	    Path2D.Double path = new Path2D.Double();
 
@@ -233,7 +490,20 @@ public class MosaicView2D extends MapView2D {
 	    boolean started = false;
 	    double previousLon = Double.NaN;
 
-	    for (Vec3 p : patch.boundary()) {
+	    int index = 0;
+
+	    for (Vec3 p : boundary) {
+	        /*
+	         * Always draw the first point. After that, allow thinning. This is only
+	         * a visualization optimization; it does not affect stored patch geometry.
+	         */
+	        if (index > 0 && stride > 1 && (index % stride) != 0) {
+	            index++;
+	            continue;
+	        }
+
+	        index++;
+
 	        if (!gsmToLatLon(p, latLon)) {
 	            started = false;
 	            previousLon = Double.NaN;
@@ -271,6 +541,81 @@ public class MosaicView2D extends MapView2D {
 	}
 	
 	/**
+	 * Sets whether polar-derived final phi-patch boundaries are visible.
+	 *
+	 * @param visible true to show polar final patches
+	 */
+	public void setPolarFinalPatchesVisible(boolean visible) {
+	    showPolarFinalPatches = visible;
+	    refresh();
+	}
+
+	/**
+	 * Checks whether polar-derived final phi-patch boundaries are visible.
+	 *
+	 * @return true if polar final patches are visible
+	 */
+	public boolean isPolarFinalPatchesVisible() {
+	    return showPolarFinalPatches;
+	}
+
+	/**
+	 * Sets the polar final phi-patch boundary color.
+	 *
+	 * @param color boundary color; ignored if null
+	 */
+	public void setPolarFinalPatchColor(Color color) {
+	    if (color != null) {
+	        polarFinalPatchColor = color;
+	        refresh();
+	    }
+	}
+
+	/**
+	 * Sets the polar final phi-patch stroke width.
+	 *
+	 * @param width stroke width in pixels
+	 */
+	public void setPolarFinalPatchStrokeWidth(float width) {
+	    polarFinalPatchStrokeWidth = Math.max(0.25f, width);
+	    refresh();
+	}
+
+	/**
+	 * Sets the drawing stride for polar final patch boundaries.
+	 * <p>
+	 * This is visualization-only. It does not alter stored patch geometry.
+	 * </p>
+	 *
+	 * @param stride draw every Nth boundary point; values below 1 are treated as 1
+	 */
+	public void setPolarFinalPatchBoundaryStride(int stride) {
+	    polarFinalPatchBoundaryStride = Math.max(1, stride);
+	    refresh();
+	}
+
+	/**
+	 * Gets the polar final patch boundary drawing stride.
+	 *
+	 * @return drawing stride
+	 */
+	public int getPolarFinalPatchBoundaryStride() {
+	    return polarFinalPatchBoundaryStride;
+	}
+	
+	/**
+	 * Checks whether a final phi patch came from a polar-derived theta patch.
+	 *
+	 * @param patch final phi patch
+	 * @return true if the patch is polar-derived
+	 */
+	private static boolean isPolarFinalPatch(PhiPatch patch) {
+	    return patch != null
+	            && patch.parentPoleClassification() != null
+	            && patch.parentPoleClassification().hasPoleInvolvement();
+	}
+	
+	/**
 	 * Draws theta-patch boundaries.
 	 *
 	 * @param g graphics context
@@ -290,13 +635,21 @@ public class MosaicView2D extends MapView2D {
 	    g.setStroke(new BasicStroke(thetaPatchStrokeWidth));
 
 	    for (ThetaPatch patch : model.getThetaPatches()) {
-	        drawThetaPatch(g, container, projection, patch);
+	        if (!isPolarThetaPatch(patch)) {
+	            drawThetaPatch(g, container, projection, patch);
+	        }
 	    }
 
 	    g.setColor(oldColor);
 	    g.setStroke(oldStroke);
 	}
-
+	
+	private static boolean isPolarThetaPatch(ThetaPatch patch) {
+	    return patch != null
+	            && patch.parentPoleClassification() != null
+	            && patch.parentPoleClassification().hasPoleInvolvement();
+	}
+	
 	/**
 	 * Draws one theta patch boundary.
 	 *
@@ -704,6 +1057,128 @@ public class MosaicView2D extends MapView2D {
 	}
 
 	/**
+	 * Sets whether the worst phi-parent area errors are highlighted.
+	 *
+	 * @param visible true to show the diagnostic overlay
+	 */
+	public void setWorstPhiParentErrorsVisible(boolean visible) {
+	    showWorstPhiParentErrors = visible;
+	    refresh();
+	}
+
+	/**
+	 * Checks whether the worst phi-parent area errors are highlighted.
+	 *
+	 * @return true if visible
+	 */
+	public boolean isWorstPhiParentErrorsVisible() {
+	    return showWorstPhiParentErrors;
+	}
+
+	/**
+	 * Sets the number of worst phi-parent errors to highlight.
+	 *
+	 * @param count number of errors to highlight
+	 */
+	public void setWorstPhiParentErrorCount(int count) {
+	    worstPhiParentErrorCount = Math.max(1, count);
+	    refresh();
+	}
+	
+	/**
+	 * Sets whether the phi children of the worst phi-parent area errors are
+	 * highlighted.
+	 *
+	 * @param visible true to show the diagnostic overlay
+	 */
+	public void setWorstPhiChildrenVisible(boolean visible) {
+	    showWorstPhiChildren = visible;
+	    refresh();
+	}
+
+	/**
+	 * Checks whether phi children of the worst phi-parent area errors are
+	 * highlighted.
+	 *
+	 * @return true if visible
+	 */
+	public boolean isWorstPhiChildrenVisible() {
+	    return showWorstPhiChildren;
+	}
+
+	/**
+	 * Sets the number of worst phi-parent errors whose children are highlighted.
+	 *
+	 * @param count number of worst parents
+	 */
+	public void setWorstPhiChildrenParentCount(int count) {
+	    worstPhiChildrenParentCount = Math.max(1, count);
+	    refresh();
+	}
+
+	/**
+	 * Gets the number of worst phi-parent errors whose children are highlighted.
+	 *
+	 * @return parent count
+	 */
+	public int getWorstPhiChildrenParentCount() {
+	    return worstPhiChildrenParentCount;
+	}
+
+	/**
+	 * Sets the worst-phi-child highlight color.
+	 *
+	 * @param color highlight color; ignored if null
+	 */
+	public void setWorstPhiChildColor(Color color) {
+	    if (color != null) {
+	        worstPhiChildColor = color;
+	        refresh();
+	    }
+	}
+
+	/**
+	 * Sets the worst-phi-child highlight stroke width.
+	 *
+	 * @param width stroke width in pixels
+	 */
+	public void setWorstPhiChildStrokeWidth(float width) {
+	    worstPhiChildStrokeWidth = Math.max(0.25f, width);
+	    refresh();
+	}
+
+	/**
+	 * Gets the number of worst phi-parent errors highlighted.
+	 *
+	 * @return error count
+	 */
+	public int getWorstPhiParentErrorCount() {
+	    return worstPhiParentErrorCount;
+	}
+
+	/**
+	 * Sets the worst-phi-error highlight color.
+	 *
+	 * @param color highlight color; ignored if null
+	 */
+	public void setWorstPhiParentErrorColor(Color color) {
+	    if (color != null) {
+	        worstPhiParentErrorColor = color;
+	        refresh();
+	    }
+	}
+
+	/**
+	 * Sets the worst-phi-error highlight stroke width.
+	 *
+	 * @param width stroke width in pixels
+	 */
+	public void setWorstPhiParentErrorStrokeWidth(float width) {
+	    worstPhiParentErrorStrokeWidth = Math.max(0.25f, width);
+	    refresh();
+	}
+	
+	/**
 	 * Sets the prepatch boundary color.
 	 *
 	 * @param color boundary color; ignored if null
@@ -735,9 +1210,9 @@ public class MosaicView2D extends MapView2D {
 	}
 	
 	/**
-	 * Sets whether final phi-patch boundaries are visible.
+	 * Sets whether non-polar final phi-patch boundaries are visible.
 	 *
-	 * @param visible true to show final patches
+	 * @param visible true to show non-polar final patches
 	 */
 	public void setFinalPatchesVisible(boolean visible) {
 	    showFinalPatches = visible;
@@ -745,14 +1220,13 @@ public class MosaicView2D extends MapView2D {
 	}
 
 	/**
-	 * Checks whether final phi-patch boundaries are visible.
+	 * Checks whether non-polar final phi-patch boundaries are visible.
 	 *
-	 * @return true if final patches are visible
+	 * @return true if non-polar final patches are visible
 	 */
 	public boolean isFinalPatchesVisible() {
 	    return showFinalPatches;
 	}
-
 	/**
 	 * Sets the final phi-patch boundary color.
 	 *
