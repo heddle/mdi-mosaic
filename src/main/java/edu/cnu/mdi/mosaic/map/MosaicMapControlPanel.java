@@ -70,7 +70,7 @@ public class MosaicMapControlPanel extends JPanel {
      */
     private void createProjectionSelector() {
         JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(3, 2, 4, 2));
+        panel.setLayout(new GridLayout(2, 3, 4, 2));
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.setBorder(new CommonBorder("Projection"));
 

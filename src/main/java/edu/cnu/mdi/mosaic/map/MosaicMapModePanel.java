@@ -44,48 +44,105 @@ public class MosaicMapModePanel extends JPanel {
 		this.view = view;
 
 		setAlignmentX(Component.LEFT_ALIGNMENT);
-		setLayout(new GridLayout(0, 1, 2, 2));
+		setLayout(new GridLayout(5, 2, 2, 2));
 		setBorder(new CommonBorder("Mosaic Display"));
 
-		addShowSphericalGrisToggle();
+		addShowSphericalGridToggle();
 		addMonteCarloToggle();
 		addPrepatchToggle();
 		addThetaPatchToggle();
 		addFinalPatchToggle();
-		addWorstPhiParentErrorToggle();
-		addWorstPhiChildrenToggle();
-		addPlaceholderToggle("Show Patch IDs");
+		addFinalPatchFillToggle();
+		addPoleMarkerToggle();
+//		addWorstPhiParentErrorToggle();
+//		addWorstPhiChildrenToggle();
+//		addPlaceholderToggle("Show Patch IDs");
 	}
-	
+
+	/**
+	 * Adds final-patch fill toggles.
+	 */
+	private void addFinalPatchFillToggle() {
+		JToggleButton nonPolarFillButton = new JToggleButton("Fill Final Patches");
+		nonPolarFillButton.setFont(font);
+		nonPolarFillButton.setSelected(view.isFinalPatchesFilled());
+
+		nonPolarFillButton.addActionListener(e -> {
+			view.setFinalPatchesFilled(nonPolarFillButton.isSelected());
+
+			if (nonPolarFillButton.isSelected() && !view.isFinalPatchesVisible()) {
+				view.setFinalPatchesVisible(true);
+			}
+
+			model.setStatusMessage(nonPolarFillButton.isSelected() ? "Non-polar final phi patches filled."
+					: "Non-polar final phi patch fill hidden.");
+		});
+
+		add(nonPolarFillButton);
+
+		JToggleButton polarFillButton = new JToggleButton("Fill Polar Final Patches");
+		polarFillButton.setFont(font);
+		polarFillButton.setSelected(view.isPolarFinalPatchesFilled());
+
+		polarFillButton.addActionListener(e -> {
+			view.setPolarFinalPatchesFilled(polarFillButton.isSelected());
+
+			if (polarFillButton.isSelected() && !view.isPolarFinalPatchesVisible()) {
+				view.setPolarFinalPatchesVisible(true);
+			}
+
+			model.setStatusMessage(polarFillButton.isSelected() ? "Polar final phi patches filled."
+					: "Polar final phi patch fill hidden.");
+		});
+
+		add(polarFillButton);
+	}
+
+	/**
+	 * Adds projected pole marker toggle.
+	 */
+	private void addPoleMarkerToggle() {
+		JToggleButton button = new JToggleButton("Show Pole Markers");
+		button.setFont(font);
+		button.setSelected(view.isProjectedPoleMarkersVisible());
+
+		button.addActionListener(e -> {
+			view.setProjectedPoleMarkersVisible(button.isSelected());
+			model.setStatusMessage(
+					button.isSelected() ? "Projected pole markers visible." : "Projected pole markers hidden.");
+		});
+
+		add(button);
+	}
+
 	/**
 	 * Adds the spherical grid visibility toggle.
 	 */
-	private void addShowSphericalGrisToggle() {
+	private void addShowSphericalGridToggle() {
 		JToggleButton button = new JToggleButton("Show Spherical Grid");
 		button.setFont(font);
 		button.setSelected(view.isSphericalGridLinesVisible());
 		button.addActionListener(e -> {
-		    view.setSphericalGridLinesVisible(!view.isSphericalGridLinesVisible());
+			view.setSphericalGridLinesVisible(!view.isSphericalGridLinesVisible());
 		});
 		add(button);
 	}
-	
+
 	/**
 	 * Adds the worst phi-child diagnostic toggle.
 	 */
 	private void addWorstPhiChildrenToggle() {
-	    JToggleButton button = new JToggleButton("Show Worst Phi Children");
-	    button.setFont(font);
-	    button.setSelected(view.isWorstPhiChildrenVisible());
+		JToggleButton button = new JToggleButton("Show Worst Phi Children");
+		button.setFont(font);
+		button.setSelected(view.isWorstPhiChildrenVisible());
 
-	    button.addActionListener(e -> {
-	        view.setWorstPhiChildrenVisible(button.isSelected());
-	        model.setStatusMessage(button.isSelected()
-	                ? "Phi children of worst parent area errors highlighted."
-	                : "Worst phi child highlights hidden.");
-	    });
+		button.addActionListener(e -> {
+			view.setWorstPhiChildrenVisible(button.isSelected());
+			model.setStatusMessage(button.isSelected() ? "Phi children of worst parent area errors highlighted."
+					: "Worst phi child highlights hidden.");
+		});
 
-	    add(button);
+		add(button);
 	}
 
 	/**
