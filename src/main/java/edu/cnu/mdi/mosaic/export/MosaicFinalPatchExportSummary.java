@@ -8,15 +8,13 @@ import java.nio.file.Path;
  * @param outputPath output path
  * @param patchCount number of patches exported
  * @param totalNormalizedArea total normalized area
- * @param totalArea total physical area stored in the patches
- * @param totalPerimeter total perimeter over exported patches
+ * @param totalPerimeterOverRadius total perimeter divided by sphere radius
  * @param sphereRadius sphere radius used by the exporter
  */
 public record MosaicFinalPatchExportSummary(
         Path outputPath,
         int patchCount,
         double totalNormalizedArea,
-        double totalArea,
-        double totalPerimeter,
+        double totalPerimeterOverRadius,
         double sphereRadius) {
 }
