@@ -1,7 +1,14 @@
 package edu.cnu.mdi.mosaic.app;
 
+import java.awt.Cursor;
+import java.io.IOException;
+import java.nio.file.Path;
+
+import javax.swing.JFileChooser;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import edu.cnu.mdi.app.BaseMDIApplication;
 import edu.cnu.mdi.log.Log;
@@ -10,6 +17,9 @@ import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmController;
 import edu.cnu.mdi.mosaic.dialog.AlgorithmOptionsDialog;
 import edu.cnu.mdi.mosaic.dialog.GridSetupDialog;
 import edu.cnu.mdi.mosaic.dialog.MonteCarloDialog;
+import edu.cnu.mdi.mosaic.export.MosaicFinalPatchExportOptions;
+import edu.cnu.mdi.mosaic.export.MosaicFinalPatchExportSummary;
+import edu.cnu.mdi.mosaic.export.MosaicFinalPatchJsonExporter;
 import edu.cnu.mdi.mosaic.map.MosaicView2D;
 import edu.cnu.mdi.mosaic.model.ModelChangedEvent;
 import edu.cnu.mdi.mosaic.model.ModelChangedListener;
@@ -43,6 +53,9 @@ public class MosaicApp extends BaseMDIApplication {
 	
 	/** Controller for running the exact Mosaic algorithm. */
 	private MosaicAlgorithmController algorithmController;
+	
+	/** Last directory used for JSON export. */
+	private Path lastJsonExportDirectory;
 
 	/** the main data model for Mosaic with the grid information */
 	private final static MosaicModel mosaicModel;
@@ -131,24 +144,177 @@ public class MosaicApp extends BaseMDIApplication {
 		mcMenu.add(clearMonteCarloItem);
 	}
 	
+	/**
+	 * Adds the Mosaic algorithm menu.
+	 */
 	private void addAlgorithmMenu() {
-		JMenu algorithmMenu = new JMenu("Algorithm");
-		getJMenuBar().add(algorithmMenu);
-		
-		JMenuItem optionsItem = new JMenuItem("Algorithm Options...");
-		optionsItem.addActionListener(e ->
-		        AlgorithmOptionsDialog.showDialog(this, mosaicModel));
-		algorithmMenu.add(optionsItem);
-		
-		JMenuItem runAlgorithmItem = new JMenuItem("Run Algorithm");
-		runAlgorithmItem.addActionListener(e -> algorithmController.runAlgorithm());
-		algorithmMenu.add(runAlgorithmItem);
+	    JMenu algorithmMenu = new JMenu("Algorithm");
+	    getJMenuBar().add(algorithmMenu);
 
-		JMenuItem clearAlgorithmItem = new JMenuItem("Clear Algorithm Result");
-		clearAlgorithmItem.addActionListener(e -> algorithmController.clearAlgorithmResult());
-		algorithmMenu.add(clearAlgorithmItem);	;
+	    JMenuItem optionsItem = new JMenuItem("Algorithm Options...");
+	    optionsItem.addActionListener(e ->
+	            AlgorithmOptionsDialog.showDialog(this, mosaicModel));
+	    algorithmMenu.add(optionsItem);
+
+	    algorithmMenu.addSeparator();
+
+	    JMenuItem runAlgorithmItem = new JMenuItem("Run Algorithm");
+	    runAlgorithmItem.addActionListener(e -> algorithmController.runAlgorithm());
+	    algorithmMenu.add(runAlgorithmItem);
+
+	    JMenuItem exportJsonItem = new JMenuItem("Export Final Patches JSON...");
+	    exportJsonItem.addActionListener(e -> exportFinalPatchesJson());
+	    algorithmMenu.add(exportJsonItem);
+
+	    algorithmMenu.addSeparator();
+
+	    JMenuItem clearAlgorithmItem = new JMenuItem("Clear Algorithm Result");
+	    clearAlgorithmItem.addActionListener(e -> algorithmController.clearAlgorithmResult());
+	    algorithmMenu.add(clearAlgorithmItem);
+	}
+	
+	/**
+	 * Exports the current final phi patches to a JSON file.
+	 */
+	private void exportFinalPatchesJson() {
+	    if (mosaicModel.getPhiPatchCount() <= 0) {
+	        String message = "No final patches to export. Run the algorithm first.";
+	        mosaicModel.setStatusMessage(message);
+
+	        JOptionPane.showMessageDialog(
+	                this,
+	                message,
+	                "Export Final Patches",
+	                JOptionPane.INFORMATION_MESSAGE);
+	        return;
+	    }
+
+	    JFileChooser chooser = new JFileChooser();
+
+	    if (lastJsonExportDirectory != null) {
+	        chooser.setCurrentDirectory(lastJsonExportDirectory.toFile());
+	    }
+
+	    chooser.setDialogTitle("Export Final Patches JSON");
+	    chooser.setFileFilter(new FileNameExtensionFilter("JSON files (*.json)", "json"));
+	    chooser.setSelectedFile(new java.io.File(defaultFinalPatchExportFilename()));
+
+	    int result = chooser.showSaveDialog(this);
+
+	    if (result != JFileChooser.APPROVE_OPTION) {
+	        return;
+	    }
+
+	    Path outputPath = ensureJsonExtension(chooser.getSelectedFile().toPath());
+
+	    if (outputPath.toFile().exists()) {
+	        int overwrite = JOptionPane.showConfirmDialog(
+	                this,
+	                "Replace existing file?\n\n" + outputPath,
+	                "Confirm Export",
+	                JOptionPane.YES_NO_OPTION,
+	                JOptionPane.WARNING_MESSAGE);
+
+	        if (overwrite != JOptionPane.YES_OPTION) {
+	            return;
+	        }
+	    }
+
+	    lastJsonExportDirectory = outputPath.toAbsolutePath().getParent();
+
+	    Cursor oldCursor = getCursor();
+
+	    try {
+	        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+	        MosaicFinalPatchExportSummary summary =
+	                MosaicFinalPatchJsonExporter.export(
+	                        outputPath,
+	                        mosaicModel.getPhiPatches(),
+	                        MosaicFinalPatchExportOptions.defaults());
+
+	        String message = String.format(
+	                "Exported %,d final patches to %s; total A_norm=%.16f",
+	                summary.patchCount(),
+	                summary.outputPath().getFileName(),
+	                summary.totalNormalizedArea());
+
+	        mosaicModel.setStatusMessage(message);
+	        Log.getInstance().info(message);
+
+	        JOptionPane.showMessageDialog(
+	                this,
+	                String.format(
+	                        "Exported %,d final patches.\n\nFile: %s\nTotal normalized area: %.16f\nTotal perimeter/R: %.6f",
+	                        summary.patchCount(),
+	                        summary.outputPath(),
+	                        summary.totalNormalizedArea(),
+	                        summary.totalPerimeterOverRadius()),
+	                "Export Complete",
+	                JOptionPane.INFORMATION_MESSAGE);
+
+	    } catch (IOException ex) {
+	        String message = "Failed to export final patches JSON: " + ex.getMessage();
+
+	        mosaicModel.setStatusMessage(message);
+	        Log.getInstance().exception(ex);
+
+	        JOptionPane.showMessageDialog(
+	                this,
+	                message,
+	                "Export Failed",
+	                JOptionPane.ERROR_MESSAGE);
+
+	    } finally {
+	        setCursor(oldCursor);
+	    }
 	}
 
+	/**
+	 * Gets the default final-patch export file name.
+	 *
+	 * @return default file name
+	 */
+	private String defaultFinalPatchExportFilename() {
+	    String gridName = mosaicModel.getGridSpec() == null
+	            ? "mosaic"
+	            : mosaicModel.getGridSpec().getName();
+
+	    String cleanGridName = gridName
+	            .replaceAll("[^A-Za-z0-9._-]+", "_")
+	            .replaceAll("_+", "_")
+	            .replaceAll("^_|_$", "");
+
+	    if (cleanGridName.isBlank()) {
+	        cleanGridName = "mosaic";
+	    }
+
+	    return cleanGridName + "_final_patches.json";
+	}
+
+	/**
+	 * Ensures a path ends in {@code .json}.
+	 *
+	 * @param path original path
+	 * @return path with json extension
+	 */
+	private Path ensureJsonExtension(Path path) {
+	    if (path == null) {
+	        throw new IllegalArgumentException("path must not be null.");
+	    }
+
+	    String name = path.getFileName().toString();
+
+	    if (name.toLowerCase().endsWith(".json")) {
+	        return path;
+	    }
+
+	    Path parent = path.getParent();
+	    String jsonName = name + ".json";
+
+	    return parent == null ? Path.of(jsonName) : parent.resolve(jsonName);
+	}
+	
 	/**
 	 * Place the views in the virtual desktop in a reasonable default layout.
 	 *
