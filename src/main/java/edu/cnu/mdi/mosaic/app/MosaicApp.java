@@ -12,7 +12,6 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 import edu.cnu.mdi.app.BaseMDIApplication;
 import edu.cnu.mdi.log.Log;
-import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithm;
 import edu.cnu.mdi.mosaic.algorithm.MosaicAlgorithmController;
 import edu.cnu.mdi.mosaic.dialog.AlgorithmOptionsDialog;
 import edu.cnu.mdi.mosaic.dialog.GridSetupDialog;
@@ -28,6 +27,7 @@ import edu.cnu.mdi.mosaic.model.MosaicModel;
 import edu.cnu.mdi.ui.colors.X11Colors;
 import edu.cnu.mdi.ui.menu.MenuManager;
 import edu.cnu.mdi.util.PropertyUtils;
+import edu.cnu.mdi.view.JsonView;
 import edu.cnu.mdi.view.LogView;
 import edu.cnu.mdi.view.VirtualView;
 
@@ -50,6 +50,9 @@ public class MosaicApp extends BaseMDIApplication {
 
 	/** the log view */
 	private LogView logView;
+	
+	/** JSON view for debugging. Not always visible. */
+	private JsonView jsonView;
 	
 	/** Controller for running the exact Mosaic algorithm. */
 	private MosaicAlgorithmController algorithmController;
@@ -97,6 +100,10 @@ public class MosaicApp extends BaseMDIApplication {
 		// Log view is useful but not always visible.
 		logView = new LogView();
 		logView.setVisible(false);
+		
+		// JSON view is useful for debugging but not always visible.
+		jsonView = new JsonView();
+		jsonView.setVisible(false);
 
 	    mosaicModel.addModelChangedListener(event -> {
 	        String message = event.getMessage();
@@ -227,12 +234,20 @@ public class MosaicApp extends BaseMDIApplication {
 	    try {
 	        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
+	        MosaicFinalPatchExportOptions options =
+	                new MosaicFinalPatchExportOptions(
+	                        Double.NaN,
+	                        true,   // Cartesian boundary points
+	                        false,  // omit spherical boundary points
+	                        false,  // omit boundary segment records
+	                        false); // compact JSON
+
 	        MosaicFinalPatchExportSummary summary =
 	                MosaicFinalPatchJsonExporter.export(
 	                        outputPath,
 	                        mosaicModel.getPhiPatches(),
-	                        MosaicFinalPatchExportOptions.defaults());
-
+	                        options);
+	        
 	        String message = String.format(
 	                "Exported %,d final patches to %s; total A_norm=%.16f",
 	                summary.patchCount(),
@@ -327,6 +342,7 @@ public class MosaicApp extends BaseMDIApplication {
 	protected void defaultViewLayout() {
 		virtualViewMove(mosaicView2D, 0, VirtualView.CENTER);
 		virtualViewMove(logView, 2, VirtualView.UPPERLEFT);
+		virtualViewMove(jsonView, 2, VirtualView.BOTTOMRIGHT);
 	}
 
 	// Show the grid setup dialog and update the model if the user accepts a new

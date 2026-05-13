@@ -119,9 +119,9 @@ public class MosaicView2D extends MapView2D {
 	 */
 	private boolean showProjectedPoleMarkers = true;
 
-	private Color finalPatchColor = new Color(255, 0, 255, 180); // magenta
+	private Color finalPatchColor = Color.red; 
 	private Color finalPatchFillColor = new Color(255, 0, 255, 20); // translucent magenta
-	private float finalPatchStrokeWidth = 0.75f;
+	private float finalPatchStrokeWidth = 1.5f;
 
 	private Color polarFinalPatchColor = new Color(255, 120, 0, 255); // orange
 	private Color polarFinalPatchFillColor = new Color(255, 120, 0, 35); // translucent orange
